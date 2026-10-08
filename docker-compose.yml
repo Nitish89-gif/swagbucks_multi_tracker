@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  swagbucks-tracker:
+    build: .
+    container_name: swagbucks_tracker
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./browser_sessions:/app/browser_sessions

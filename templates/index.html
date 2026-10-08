@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Swagbucks Multi Tracker</title>
+  
+  <!-- iOS / iPhone App & PWA Support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="SB Tracker">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="apple-touch-icon-precomposed" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#090d16">
+  
+  <!-- Google Fonts & Chart.js -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root {
+      --bg-dark: #090d16;
+      --card-bg: #111827;
+      --card-border: #1f2937;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --accent-green: #10b981;
+      --accent-gold: #f59e0b;
+      --accent-red: #ef4444;
+      --text-main: #f9fafb;
+      --text-muted: #9ca3af;
+      --text-dim: #6b7280;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Inter', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Container: Mobile-First */
+    .container {
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 14px;
+    }
+
+    @media (min-width: 768px) {
+      .container {
+        padding: 24px;
+      }
+    }
+
+    /* Header */
+    header {
+      background-color: #0d1322;
+      border-bottom: 1px solid var(--card-border);
+      padding: 12px 16px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(10px);
+    }
+
+    .header-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    @media (min-width: 768px) {
+      .header-content {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+      }
+    }
+
+    .brand-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      background: linear-gradient(135deg, #2563eb, #10b981);
+      width: 36px;
+      height: 36px;
+      border-radius: 9px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 16px;
+      color: #fff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-subtitle {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    /* Buttons: Touch-friendly (min 42px height) */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background-color: #1f2937;
+      color: var(--text-main);
+      border: 1px solid #374151;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      min-height: 42px;
+      transition: all 0.15s ease;
+      touch-action: manipulation;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      border-color: #1d4ed8;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-success {
+      background: rgba(16, 185, 129, 0.2);
+      border-color: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+    }
+    .btn-success:hover {
+      background: rgba(16, 185, 129, 0.3);
+    }
+
+    .btn-danger {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.3);
+      color: #f87171;
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.25);
+    }
+
+    .btn-sm {
+      padding: 6px 10px;
+      font-size: 12px;
+      min-height: 34px;
+    }
+
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    @media (min-width: 640px) {
+      .kpi-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .kpi-grid {
+        grid-template-columns: repeat(5, 1fr);
+      }
+    }
+
+    .kpi-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 16px 14px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+
+    .kpi-title {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .kpi-value {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-main);
+      line-height: 1.1;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .kpi-sub {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* Featured Sections */
+    .featured-section {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (min-width: 768px) {
+      .featured-section {
+        padding: 20px;
+      }
+    }
+
+    .section-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .section-title {
+      font-size: 15px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .featured-badge {
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      padding: 3px 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    /* Status Pill */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      color: #34d399;
+    }
+
+    .status-pill.unconfigured {
+      background: rgba(245, 158, 11, 0.12);
+      border-color: rgba(245, 158, 11, 0.3);
+      color: #fbbf24;
+    }
+
+    .status-pill.error {
+      background: rgba(239, 68, 68, 0.15);
+      border-color: rgba(239, 68, 68, 0.35);
+      color: #f87171;
+    }
+
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: #10b981;
+      box-shadow: 0 0 6px #10b981;
+      animation: pulse 2s infinite;
+    }
+
+    .pulse-dot.amber {
+      background-color: #f59e0b;
+      box-shadow: 0 0 6px #f59e0b;
+    }
+
+    .pulse-dot.error {
+      background-color: #ef4444;
+      box-shadow: 0 0 6px #ef4444;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.2); opacity: 1; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+
+    /* Forms & Inputs */
+    .form-group {
+      margin-bottom: 14px;
+    }
+
+    .form-label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .form-input {
+      width: 100%;
+      background: #090d16;
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      min-height: 42px;
+      transition: border-color 0.15s ease;
+    }
+
+    .form-input:focus {
+      border-color: #3b82f6;
+    }
+
+    .form-hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Above Threshold Grid */
+    .above-threshold-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .threshold-card {
+      background: linear-gradient(145deg, rgba(16, 185, 129, 0.08) 0%, rgba(17, 24, 39, 0.9) 100%);
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 10px;
+      padding: 14px;
+    }
+
+    .tc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .tc-email {
+      font-size: 14px;
+      font-weight: 700;
+      color: #fff;
+      word-break: break-all;
+    }
+
+    .tc-status-pill {
+      font-size: 11px;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      padding: 2px 7px;
+      border-radius: 6px;
+      white-space: nowrap;
+      margin-left: 6px;
+    }
+
+    .tc-balance-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-top: 6px;
+    }
+
+    .tc-balance {
+      font-size: 24px;
+      font-weight: 800;
+      color: #34d399;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .tc-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Accounts Stack (Mobile-friendly list) */
+    .accounts-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .account-item-card {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.15s ease;
+    }
+
+    @media (min-width: 640px) {
+      .account-item-card {
+        padding: 16px;
+      }
+    }
+
+    .aic-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .aic-email {
+      font-size: 15px;
+      font-weight: 700;
+      color: #fff;
+      word-break: break-all;
+    }
+
+    .email-login-btn {
+      background: none;
+      border: none;
+      color: #60a5fa;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      padding: 0;
+      text-align: left;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: color 0.15s ease;
+      word-break: break-all;
+    }
+
+    .email-login-btn:hover {
+      color: #93c5fd;
+      text-decoration: underline;
+    }
+
+    .aic-badges-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .aic-badge {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .aic-badge.above {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+
+    .aic-badge.below {
+      background: rgba(59, 130, 246, 0.15);
+      color: #93c5fd;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .aic-badge.session-ok {
+      background: rgba(255, 255, 255, 0.06);
+      color: #e5e7eb;
+    }
+
+    .aic-badge.session-expired {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .aic-middle {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 10px 0;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .aic-balance {
+      font-size: 24px;
+      font-weight: 800;
+      color: #f3f4f6;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .aic-change {
+      font-size: 13px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .aic-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .aic-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+
+    .aic-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 16px;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background-color: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      width: 100%;
+      max-width: 500px;
+      padding: 20px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .close-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 22px;
+      cursor: pointer;
+      line-height: 1;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: inline-block;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Mobile-First Sticky Header -->
+  <header>
+    <div class="header-content">
+      <div class="brand-row">
+        <div class="brand">
+          <div class="brand-icon">SB</div>
+          <div>
+            <div class="brand-title">Swagbucks Multi Tracker</div>
+            <div class="brand-subtitle">Automatic 530 SB Mobile Alert System</div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <div id="headerLastCheckPill" class="status-pill" style="background: rgba(59, 130, 246, 0.12); border-color: rgba(59, 130, 246, 0.3); color: #93c5fd;">
+            <span style="font-size: 11px;">🕒 Checked: <strong id="headerLastCheckedTime">--</strong></span>
+          </div>
+          <div id="headerStatusBadge" class="status-pill">
+            <div class="pulse-dot" id="headerDot"></div>
+            <span id="trackerStatusText">Running</span>
+          </div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button class="btn btn-primary" id="btnCheckNow" onclick="triggerManualCheck()">
+          <span id="checkSpinner" class="spinner" style="display: none;"></span>
+          <span id="checkBtnText">🔄 Check Now</span>
+        </button>
+        <button class="btn" onclick="openAddAccountModal()">➕ Add Account</button>
+        <button class="btn btn-success" onclick="scrollToMobileSettings()">📱 Phone Alerts</button>
+        <button class="btn" onclick="openSettingsModal()">⚙️</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- Alerts Container (Session Expired, etc.) -->
+    <div id="alertsContainer"></div>
+
+    <!-- 5 KPI Overview Cards (Mobile-friendly, Dynamic) -->
+    <div class="kpi-grid">
+      <!-- KPI 1: TOTAL ACCOUNTS -->
+      <div class="kpi-card" style="border-color: rgba(59, 130, 246, 0.4);">
+        <div class="kpi-title" style="color: #60a5fa;">TOTAL ACCOUNTS</div>
+        <div class="kpi-value" id="kpiTotalAccounts" style="color: #60a5fa;">0</div>
+        <div class="kpi-sub" id="kpiAccountsSub">Calculated dynamically</div>
+      </div>
+
+      <!-- KPI 2: ACCOUNTS ABOVE 530 SB -->
+      <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.4);">
+        <div class="kpi-title" style="color: #34d399;">ACCOUNTS ABOVE 530 SB</div>
+        <div class="kpi-value" id="kpiCountAbove530" style="color: #34d399;">0</div>
+        <div class="kpi-sub" id="kpiAbove530Sub">Exceeding 530 SB</div>
+      </div>
+
+      <!-- KPI 3: ALERT THRESHOLD -->
+      <div class="kpi-card">
+        <div class="kpi-title">ALERT THRESHOLD</div>
+        <div class="kpi-value" id="kpiThresholdValue" style="color: #f59e0b;">530 SB</div>
+        <div class="kpi-sub">Continuous background check</div>
+      </div>
+
+      <!-- KPI 4: MOBILE PHONE ALERT -->
+      <div class="kpi-card" style="border-color: rgba(16, 185, 129, 0.4); cursor: pointer;" onclick="scrollToMobileSettings()">
+        <div class="kpi-title" style="color: #34d399;">📱 MOBILE PHONE ALERT</div>
+        <div class="kpi-value" id="kpiMobileAlertStatus" style="font-size: 19px; color: #34d399;">Active</div>
+        <div class="kpi-sub" id="kpiMobileAlertSub">Tap to open phone channel</div>
+      </div>
+
+      <!-- KPI 5: LAST CHECKED TIME -->
+      <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.4);">
+        <div class="kpi-title" style="color: #fbbf24;">🕒 LAST CHECKED</div>
+        <div class="kpi-value" id="kpiLastChecked" style="font-size: 16px; color: #fde68a;">--</div>
+        <div class="kpi-sub" id="kpiLastCheckedSub">Auto checking every 60s</div>
+      </div>
+    </div>
+
+    <!-- FEATURED SECTION: Instant Mobile Phone Alerts (Zero Passwords, Zero Setup Friction) -->
+    <div class="featured-section" id="mobileSettingsSection" style="border-color: rgba(16, 185, 129, 0.5); background: linear-gradient(180deg, rgba(16, 185, 129, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%);">
+      <div class="section-title-row">
+        <div class="section-title">
+          <span>📱 Instant Mobile Phone Alert (Direct to Lockscreen)</span>
+          <span class="status-pill" id="badgeMobileStatusPill">
+            <div class="pulse-dot" id="dotMobileStatus"></div>
+            <span id="textMobileStatusBadge">Active & Ready</span>
+          </span>
+        </div>
+        <span style="font-size: 12px; color: #34d399; font-weight: 600;">100% Guaranteed Phone Delivery</span>
+      </div>
+
+      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 12px;">
+          <div style="font-size: 28px; line-height: 1;">🔔</div>
+          <div style="font-size: 13px; color: #d1fae5; line-height: 1.5;">
+            <strong>Zero Passwords, Zero API Keys, Zero App Password Hassles!</strong><br>
+            Whenever any Swagbucks balance crosses <strong>530 SB</strong>, an alert will ring immediately on your mobile phone with loud sound, vibration, account email, new balance, and the exact last checked time.<br>
+            <span style="color: #6ee7b7; font-size: 12px; display: inline-block; margin-top: 5px;">
+              👉 <strong>Setup in 3 seconds:</strong> Click <strong>"📲 1-Tap Connect to Phone"</strong> below on your phone browser (or open the link) and tap <em>Subscribe</em>!
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action & Test Row -->
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px;">
+        <a id="btnOpenPhoneChannel" href="https://ntfy.sh/sb_alerts_9676061877" target="_blank" rel="noopener noreferrer" class="btn btn-primary" style="background: linear-gradient(135deg, #10b981, #059669); border-color: #059669; font-weight: 700; text-decoration: none; padding: 10px 18px; font-size: 13px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);">
+          📲 1-Tap Connect to Phone (Open Channel)
+        </a>
+
+        <button class="btn btn-success" id="btnTestMobileAlert" onclick="sendMobileTestAlert()" style="min-width: 190px; font-weight: 600;">
+          <span id="testMobileSpinner" class="spinner" style="display: none;"></span>
+          <span id="testMobileBtnText">🔔 Send Test Alert to Phone</span>
+        </button>
+
+        <button class="btn" onclick="copyMobileAlertLink()" style="border-color: #374151;">
+          📋 Copy Mobile Link
+        </button>
+
+        <button class="btn" onclick="toggleThresholdSimulator()" style="border-color: #2563eb; color: #93c5fd;">
+          🧪 Test 530 SB Alert
+        </button>
+      </div>
+
+      <!-- Mobile Push Topic & Link Details -->
+      <div style="background: #090d16; border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px;">
+        <div>
+          <span style="color: var(--text-dim);">Your Private Mobile Topic:</span>
+          <strong style="color: #60a5fa; font-family: 'JetBrains Mono', monospace; margin-left: 6px;" id="lblMobileTopic">sb_alerts_9676061877</strong>
+        </div>
+        <div>
+          <span style="color: var(--text-dim);">Mobile Direct Link:</span>
+          <a id="linkMobileDirect" href="https://ntfy.sh/sb_alerts_9676061877" target="_blank" style="color: #34d399; margin-left: 6px; text-decoration: underline;">https://ntfy.sh/sb_alerts_9676061877</a>
+        </div>
+        <div>
+          <span style="color: var(--text-dim);">Last Checked Time:</span>
+          <strong style="color: #fbbf24; margin-left: 6px;" id="lblMobileLastCheck">--</strong>
+        </div>
+      </div>
+
+      <!-- Test Mobile Result Banner -->
+      <div id="mobileTestResultBanner" style="display: none; margin-top: 14px; border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.5;"></div>
+
+      <!-- 530 SB Threshold Simulator (Test duplicate prevention & exact phone alert) -->
+      <div id="panelThresholdSimulator" style="display: none; background: #090d16; border: 1px solid #2563eb; border-radius: 10px; padding: 14px; margin-top: 14px;">
+        <div style="font-size: 13px; font-weight: 700; color: #bfdbfe; margin-bottom: 6px;">
+          🎯 530 SB Phone Alert Verification Tool
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px; line-height: 1.4;">
+          Test the exact 530 SB threshold crossing alert sent to your mobile phone. Verifies that the alert specifically names the account email.
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 12px;">
+          <div>
+            <label class="form-label" style="font-size: 11px;">Previous SB</label>
+            <input type="number" class="form-input" id="simPrevSb" value="525" style="min-height: 38px;">
+          </div>
+          <div>
+            <label class="form-label" style="font-size: 11px;">Current SB</label>
+            <input type="number" class="form-input" id="simCurrSb" value="535" style="min-height: 38px;">
+          </div>
+          <div>
+            <label class="form-label" style="font-size: 11px;">Account Email to Test</label>
+            <input type="text" class="form-input" id="simAccEmail" placeholder="account@example.com" style="min-height: 38px;">
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button class="btn btn-sm" onclick="toggleThresholdSimulator()">Close</button>
+          <button class="btn btn-primary btn-sm" id="btnRunThresholdSim" onclick="runThresholdSimulation()">
+            <span id="simSpinner" class="spinner" style="display: none;"></span>
+            <span id="simBtnText">Verify 530 SB Alert</span>
+          </button>
+        </div>
+        <div id="simResultBox" style="display: none; margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.5;"></div>
+      </div>
+    </div>
+
+    <!-- FEATURED SECTION: Accounts with SB Balance >= 530 -->
+    <div class="featured-section" style="border-color: rgba(16, 185, 129, 0.35);">
+      <div class="section-title-row">
+        <div class="section-title">
+          <span>🎯 Accounts with 530+ SB</span>
+          <span class="featured-badge" id="badgeAbove530Count">0 Accounts</span>
+        </div>
+        <span style="font-size: 12px; color: var(--text-dim);">Fires instant mobile phone alert once reached</span>
+      </div>
+
+      <div class="above-threshold-grid" id="aboveThresholdContainer">
+        <div style="padding: 20px; text-align: center; color: var(--text-muted); grid-column: 1 / -1; font-size: 13px;">
+          No accounts currently at or above 530 SB. When an account reaches 530 SB, an instant mobile phone alert is sent immediately.
+        </div>
+      </div>
+    </div>
+
+    <!-- ALL MONITORED ACCOUNTS SECTION (List with 530 status) -->
+    <div style="margin-bottom: 24px;">
+      <div class="section-title-row">
+        <div class="section-title">
+          <span>📋 All Tracked Accounts</span>
+          <span style="font-size: 12px; color: var(--text-dim);" id="lblIntervalInfo">(Polling every 60s)</span>
+        </div>
+        <button class="btn btn-sm" onclick="openAddAccountModal()">➕ Link New Account</button>
+      </div>
+
+      <!-- Mobile Card Stack -->
+      <div class="accounts-stack" id="allAccountsContainer">
+        <div style="text-align: center; color: var(--text-dim); padding: 30px;">
+          Loading tracked accounts...
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Add Account Modal -->
+  <div class="modal-overlay" id="addAccountModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Link Swagbucks Account</div>
+        <button class="close-btn" onclick="closeAddAccountModal()">&times;</button>
+      </div>
+
+      <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.25); border-radius: 8px; padding: 12px; font-size: 12px; color: #bfdbfe; margin-bottom: 14px;">
+        Add your Swagbucks account email and password. Once logged in, it stays permanently connected with automatic 530+ SB mobile alerts.
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Swagbucks Email *</label>
+        <input type="email" class="form-input" id="inputSbEmail" placeholder="account@example.com" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Swagbucks Password *</label>
+        <input type="password" class="form-input" id="inputSbPassword" placeholder="••••••••••••" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Account Label (Optional)</label>
+        <input type="text" class="form-input" id="inputSbNick" placeholder="e.g. Primary Account">
+      </div>
+
+      <div id="loginStatusMsg" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;"></div>
+
+      <div class="modal-actions">
+        <button class="btn" onclick="closeAddAccountModal()">Cancel</button>
+        <button class="btn btn-primary" id="btnLoginSubmit" onclick="submitCredentialsLogin()">
+          <span id="loginSpinner" class="spinner" style="display: none;"></span>
+          <span id="loginBtnText">🚀 Connect & Login</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Tracker Settings</div>
+        <button class="close-btn" onclick="closeSettingsModal()">&times;</button>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Check Interval (seconds)</label>
+        <input type="number" class="form-input" id="settingInterval" min="15" max="3600" value="60">
+        <div class="form-hint">Default: 60s</div>
+      </div>
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 14px;">
+        <input type="checkbox" id="settingHeadless" checked style="width: 20px; height: 20px;">
+        <label for="settingHeadless" class="form-label" style="margin-bottom: 0;">Headless (Hidden Browser)</label>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeSettingsModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Save Changes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Chart Modal -->
+  <div class="modal-overlay" id="historyModal">
+    <div class="modal" style="max-width: 650px;">
+      <div class="modal-header">
+        <div class="modal-title" id="historyModalTitle">Balance History</div>
+        <button class="close-btn" onclick="closeHistoryModal()">&times;</button>
+      </div>
+      <div style="height: 280px; width: 100%;">
+        <canvas id="historyChart"></canvas>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" onclick="closeHistoryModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Swagbucks Account Login Modal -->
+  <div class="modal-overlay" id="accountLoginModal">
+    <div class="modal" style="max-width: 480px;">
+      <div class="modal-header">
+        <div class="modal-title">🔐 Swagbucks Account Login</div>
+        <button class="close-btn" onclick="closeAccountLoginModal()">&times;</button>
+      </div>
+
+      <div style="margin-bottom: 16px;">
+        <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 4px;">Account Email</div>
+        <div id="modalTargetEmail" style="font-size: 16px; font-weight: 700; color: #60a5fa; font-family: 'JetBrains Mono', monospace; word-break: break-all;"></div>
+      </div>
+
+      <div style="margin-bottom: 18px;">
+        <a href="https://www.swagbucks.com/p/login" target="_blank" rel="noopener noreferrer" onclick="closeAccountLoginModal()" class="btn btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 700; font-size: 14px; text-decoration: none;">
+          🌐 Open Swagbucks Login Page
+        </a>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn" onclick="closeAccountLoginModal()">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Script -->
+  <script>
+    let chartInstance = null;
+    let pendingAccountId = null;
+    let hasLoadedInitialConfig = false;
+    let currentLoginModalAccount = null;
+
+    // Account Email Click Modal Handlers
+    function handleAccountEmailClick(accountId, email) {
+      currentLoginModalAccount = { accountId, email };
+      const emailEl = document.getElementById('modalTargetEmail');
+      if (emailEl) emailEl.innerText = email || accountId;
+      document.getElementById('accountLoginModal').classList.add('active');
+    }
+
+    function closeAccountLoginModal() {
+      document.getElementById('accountLoginModal').classList.remove('active');
+      currentLoginModalAccount = null;
+    }
+
+    // Smooth scroll to Email settings
+    function scrollToEmailSettings() {
+      const el = document.getElementById('emailSettingsSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Smooth scroll to Mobile Phone settings
+    function scrollToMobileSettings() {
+      const el = document.getElementById('mobileSettingsSection');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // Copy direct mobile link
+    function copyMobileAlertLink() {
+      const topic = document.getElementById('lblMobileTopic').innerText.trim() || 'sb_alerts_9676061877';
+      const url = `https://ntfy.sh/${topic}`;
+      navigator.clipboard.writeText(url).then(() => {
+        alert(`Mobile alert link copied to clipboard:\n\n${url}\n\nOpen this in your mobile browser and tap Subscribe!`);
+      }).catch(() => {
+        prompt('Copy this URL to open on your phone:', url);
+      });
+    }
+
+    // Send Real Mobile Test Alert
+    async function sendMobileTestAlert() {
+      const banner = document.getElementById('mobileTestResultBanner');
+      const spinner = document.getElementById('testMobileSpinner');
+      const btnText = document.getElementById('testMobileBtnText');
+      const btn = document.getElementById('btnTestMobileAlert');
+
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Sending to Phone...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/mobile/test', { method: 'POST' });
+        const data = await res.json();
+
+        if (data.success) {
+          showBanner(banner, 'success', `
+            <strong>🔔 Phone Test Alert Sent Successfully!</strong><br>
+            A high-priority alert with sound & vibration was pushed to your phone right now.<br>
+            <small style="color: #a7f3d0; margin-top: 6px; display: block;">
+              &bull; Topic: <code>${data.mobile ? data.mobile.topic : 'sb_alerts_9676061877'}</code><br>
+              &bull; Direct Link: <a href="${data.mobile ? data.mobile.url : '#'}" target="_blank" style="color: #fff; text-decoration: underline;">${data.mobile ? data.mobile.url : ''}</a><br>
+              &bull; Time Checked: ${new Date().toLocaleTimeString()}
+            </small>
+          `);
+        } else {
+          showBanner(banner, 'error', `
+            <strong>❌ Mobile alert test failed:</strong><br>
+            ${data.detail || 'Could not dispatch push notification.'}
+          `);
+        }
+        fetchDashboard();
+      } catch (err) {
+        showBanner(banner, 'error', `Network error while sending mobile test: ${err}`);
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = '🔔 Send Test Alert to Phone';
+        btn.disabled = false;
+      }
+    }
+
+    // Auto-detect SMTP settings from sender email domain
+    function autoDetectSmtp(email) {
+      if (!email || !email.includes('@')) return;
+      const domain = email.toLowerCase().split('@')[1];
+      const hostInput = document.getElementById('cfgSmtpHost');
+      const portInput = document.getElementById('cfgSmtpPort');
+      const label = document.getElementById('lblCurrentHostPort');
+
+      let host = 'smtp.gmail.com';
+      let port = 587;
+
+      if (domain.includes('gmail.com')) {
+        host = 'smtp.gmail.com';
+        port = 587;
+      } else if (domain.includes('outlook.com') || domain.includes('hotmail.com') || domain.includes('live.com') || domain.includes('office365.com')) {
+        host = 'smtp-mail.outlook.com';
+        port = 587;
+      } else if (domain.includes('yahoo.com')) {
+        host = 'smtp.mail.yahoo.com';
+        port = 587;
+      } else if (domain.includes('zoho.com')) {
+        host = 'smtp.zoho.com';
+        port = 587;
+      } else if (domain.includes('icloud.com')) {
+        host = 'smtp.mail.me.com';
+        port = 587;
+      }
+
+      hostInput.value = host;
+      portInput.value = port;
+      label.innerText = `${host}:${port}`;
+    }
+
+    function toggleAdvancedSmtp() {
+      const panel = document.getElementById('panelAdvancedSmtp');
+      const arrow = document.getElementById('arrowAdvanced');
+      if (panel.style.display === 'none') {
+        panel.style.display = 'block';
+        arrow.innerText = '▲';
+      } else {
+        panel.style.display = 'none';
+        arrow.innerText = '▼';
+      }
+    }
+
+    function toggleThresholdSimulator() {
+      const panel = document.getElementById('panelThresholdSimulator');
+      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+      const res = document.getElementById('simResultBox');
+      if (res) res.style.display = 'none';
+    }
+
+    // Dashboard Polling and Rendering
+    async function fetchDashboard() {
+      try {
+        const res = await fetch('/api/dashboard');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderDashboard(data);
+      } catch (err) {
+        console.error("Dashboard poll error:", err);
+      }
+    }
+
+    function renderDashboard(data) {
+      // 1. KPI 1: TOTAL ACCOUNTS (Dynamically calculated)
+      const totalAccounts = data.total_accounts !== undefined ? data.total_accounts : (data.accounts ? data.accounts.length : 0);
+      document.getElementById('kpiTotalAccounts').innerText = totalAccounts;
+      document.getElementById('kpiAccountsSub').innerText = `${totalAccounts} tracked in database`;
+
+      // 2. KPI 2: ACCOUNTS ABOVE 530 SB
+      const countAbove530 = data.count_above_530 || 0;
+      document.getElementById('kpiCountAbove530').innerText = countAbove530;
+      document.getElementById('badgeAbove530Count').innerText = `${countAbove530} Accounts`;
+      document.getElementById('kpiAbove530Sub').innerText = countAbove530 > 0 ? `${countAbove530} accounts ready` : 'No accounts currently > 530';
+
+      // 3. KPI 3: ALERT THRESHOLD
+      document.getElementById('kpiThresholdValue').innerText = `${data.threshold || 530} SB`;
+
+      // 4. KPI 4: MOBILE PHONE ALERT Status
+      const mobileStatus = data.mobile_status || {};
+      const isMobileEnabled = data.mobile_alerts_enabled !== false;
+      const kpiMobileAlertEl = document.getElementById('kpiMobileAlertStatus');
+      const kpiMobileSubEl = document.getElementById('kpiMobileAlertSub');
+      const badgeMobilePill = document.getElementById('badgeMobileStatusPill');
+      const dotMobile = document.getElementById('dotMobileStatus');
+      const textMobileBadge = document.getElementById('textMobileStatusBadge');
+
+      if (isMobileEnabled) {
+        if (kpiMobileAlertEl) {
+          kpiMobileAlertEl.innerText = 'Active';
+          kpiMobileAlertEl.style.color = '#34d399';
+        }
+        if (kpiMobileSubEl) kpiMobileSubEl.innerText = `Topic: ${data.mobile_push_topic || 'sb_alerts_9676061877'}`;
+        if (badgeMobilePill) badgeMobilePill.className = 'status-pill';
+        if (dotMobile) dotMobile.className = 'pulse-dot';
+        if (textMobileBadge) textMobileBadge.innerText = 'Active & Ready';
+      } else {
+        if (kpiMobileAlertEl) {
+          kpiMobileAlertEl.innerText = 'Disabled';
+          kpiMobileAlertEl.style.color = '#fbbf24';
+        }
+        if (kpiMobileSubEl) kpiMobileSubEl.innerText = 'Tap to enable';
+        if (badgeMobilePill) badgeMobilePill.className = 'status-pill unconfigured';
+        if (dotMobile) dotMobile.className = 'pulse-dot amber';
+        if (textMobileBadge) textMobileBadge.innerText = 'Disabled';
+      }
+
+      // 5. KPI 5 & Headers: LAST CHECKED TIME
+      const lastCheckTime = data.last_check_time || data.last_successful_check || 'Never';
+      const kpiLastCheckEl = document.getElementById('kpiLastChecked');
+      const kpiLastCheckSubEl = document.getElementById('kpiLastCheckedSub');
+      const headerLastCheckEl = document.getElementById('headerLastCheckedTime');
+      const lblMobileLastCheckEl = document.getElementById('lblMobileLastCheck');
+      if (kpiLastCheckEl) kpiLastCheckEl.innerText = lastCheckTime;
+      if (headerLastCheckEl) headerLastCheckEl.innerText = lastCheckTime;
+      if (lblMobileLastCheckEl) lblMobileLastCheckEl.innerText = lastCheckTime;
+      if (kpiLastCheckSubEl) kpiLastCheckSubEl.innerText = `Auto checking every ${data.interval_seconds || 60}s`;
+
+      // Update Mobile Links & Topic
+      if (data.mobile_push_url) {
+        const btnPhone = document.getElementById('btnOpenPhoneChannel');
+        const linkDirect = document.getElementById('linkMobileDirect');
+        const lblTopic = document.getElementById('lblMobileTopic');
+        if (btnPhone) btnPhone.href = data.mobile_push_url;
+        if (linkDirect) {
+          linkDirect.href = data.mobile_push_url;
+          linkDirect.innerText = data.mobile_push_url;
+        }
+        if (lblTopic) lblTopic.innerText = data.mobile_push_topic || 'sb_alerts_9676061877';
+      }
+
+      // Populate simulation email on initial load
+      if (!hasLoadedInitialConfig) {
+        if (data.swagbucks_email) {
+          const simEmail = document.getElementById('simAccEmail');
+          if (simEmail) simEmail.value = data.swagbucks_email;
+        }
+        hasLoadedInitialConfig = true;
+      }
+
+      // Header Tracker Status
+      const isRunning = data.tracker_status === 'Running';
+      const trackerStatusText = document.getElementById('trackerStatusText');
+      const headerDot = document.getElementById('headerDot');
+      if (isRunning) {
+        trackerStatusText.innerText = `${totalAccounts} Accounts Monitored`;
+        headerDot.className = 'pulse-dot';
+      } else {
+        trackerStatusText.innerText = 'Degraded';
+        headerDot.className = 'pulse-dot error';
+      }
+
+      // Check Now Button State
+      const spinner = document.getElementById('checkSpinner');
+      const btnText = document.getElementById('checkBtnText');
+      if (data.is_checking) {
+        spinner.style.display = 'inline-block';
+        btnText.innerText = ' Checking...';
+      } else {
+        spinner.style.display = 'none';
+        btnText.innerText = '🔄 Check Now';
+      }
+
+      // Render Featured Section: Accounts > 530 SB
+      const aboveContainer = document.getElementById('aboveThresholdContainer');
+      const aboveAccounts = data.accounts_above_530 || [];
+      if (aboveAccounts.length === 0) {
+        aboveContainer.innerHTML = `
+          <div style="padding: 20px; text-align: center; color: var(--text-muted); grid-column: 1 / -1; font-size: 13px;">
+            No accounts currently above 530 SB. When an account crosses 530 SB, an instant mobile phone alert is sent immediately.
+          </div>
+        `;
+      } else {
+        aboveContainer.innerHTML = aboveAccounts.map(acc => `
+          <div class="threshold-card">
+            <div class="tc-header">
+              <div class="tc-email">
+                <button class="email-login-btn" onclick="handleAccountEmailClick('${acc.account_id}', '${acc.email || acc.account_id}')" title="Click to log in to Swagbucks">
+                  🔗 ${acc.email || acc.account_id}
+                </button>
+              </div>
+              <div class="tc-status-pill">Above 530 SB</div>
+            </div>
+            <div class="tc-balance-row">
+              <div class="tc-balance">${acc.current_sb ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 14px; font-weight: 600;">SB</span></div>
+              <div style="font-size: 13px; font-weight: 600; color: #34d399;">
+                ${acc.latest_change > 0 ? '+' + acc.latest_change : (acc.latest_change || 0)} SB
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
+              <span class="tc-meta" style="color: #fde68a; font-weight: 600;">🕒 Last Checked: ${acc.last_check_time || '--'}</span>
+              <button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="viewHistory('${acc.account_id}')">📊 History</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Render All Accounts List (Mobile Card Stack matching exact requirements)
+      const allContainer = document.getElementById('allAccountsContainer');
+      if (!data.accounts || data.accounts.length === 0) {
+        allContainer.innerHTML = `
+          <div style="text-align: center; color: var(--text-dim); padding: 30px;">
+            No accounts added yet. Click <strong>"➕ Add Account"</strong> to begin tracking.
+          </div>
+        `;
+        return;
+      }
+
+      allContainer.innerHTML = data.accounts.map(acc => {
+        const isAbove = acc.is_above_530 || (acc.current_sb !== null && acc.current_sb >= 530);
+        const status530Class = isAbove ? 'aic-badge above' : 'aic-badge below';
+        const status530Text = isAbove ? '530+ Reached' : 'Below 530';
+
+        const sessionClass = 'aic-badge session-ok';
+        const sessionText = '✓ Logged In';
+
+        const changeColor = acc.latest_change > 0 ? '#34d399' : acc.latest_change < 0 ? '#f87171' : 'var(--text-dim)';
+        const changeStr = acc.latest_change > 0 ? `+${acc.latest_change}` : `${acc.latest_change || 0}`;
+
+        return `
+          <div class="account-item-card" style="${isAbove ? 'border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.03);' : ''}">
+            <div class="aic-top">
+              <div>
+                <div class="aic-email">
+                  <button class="email-login-btn" onclick="handleAccountEmailClick('${acc.account_id}', '${acc.email || acc.account_id}')" title="Click to log in to Swagbucks">
+                    🔗 ${acc.email || acc.account_id}
+                  </button>
+                </div>
+                <div class="aic-meta" style="margin-top: 4px; font-size: 12px;">
+                  🕒 <strong>Last Checked:</strong> <span style="color: #fde68a; font-weight: 700;">${acc.last_check_time || 'Never'}</span> &bull; ID: ${acc.account_id}
+                </div>
+              </div>
+              <div class="aic-badges-row">
+                <span class="${status530Class}">${status530Text}</span>
+                <span class="${sessionClass}">${sessionText}</span>
+              </div>
+            </div>
+            <div class="aic-middle">
+              <div>
+                <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Current Balance</div>
+                <div class="aic-balance">${acc.current_sb !== null && acc.current_sb !== undefined ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 13px; color: var(--text-muted);">SB</span></div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Change</div>
+                <div class="aic-change" style="color: ${changeColor};">Δ ${changeStr} SB</div>
+              </div>
+            </div>
+            <div class="aic-bottom">
+              <span class="aic-meta">Threshold: 530 SB &bull; Alert: ${isAbove ? 'Triggered / Monitored' : 'Monitoring'}</span>
+              <div class="aic-actions">
+                <button class="btn btn-sm" onclick="viewHistory('${acc.account_id}')">📊 History</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAccount('${acc.account_id}')">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Run 530 SB Threshold Simulation
+    async function runThresholdSimulation() {
+      const prev = parseInt(document.getElementById('simPrevSb').value);
+      const curr = parseInt(document.getElementById('simCurrSb').value);
+      const accEmail = document.getElementById('simAccEmail').value.trim();
+
+      const spinner = document.getElementById('simSpinner');
+      const btnText = document.getElementById('simBtnText');
+      const btn = document.getElementById('btnRunThresholdSim');
+      const resBox = document.getElementById('simResultBox');
+
+      if (isNaN(prev) || isNaN(curr)) {
+        alert('Please enter valid numeric SB values.');
+        return;
+      }
+
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Testing...';
+      btn.disabled = true;
+
+      try {
+        const res = await fetch('/api/email/test-threshold', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prev_balance: prev,
+            current_balance: curr,
+            account_email: accEmail || null
+          })
+        });
+
+        const data = await res.json();
+        resBox.style.display = 'block';
+
+        if (data.triggered) {
+          if (data.success || data.mobile_success || data.email_success) {
+            resBox.style.background = 'rgba(16, 185, 129, 0.15)';
+            resBox.style.border = '1px solid rgba(16, 185, 129, 0.35)';
+            resBox.style.color = '#34d399';
+            resBox.innerHTML = `
+              <strong>🎯 530+ SB THRESHOLD CROSSED & ALERT DELIVERED!</strong><br>
+              ${data.message}<br>
+              <small style="color: #a7f3d0; margin-top: 6px; display: block;">
+                &bull; 📱 Mobile Phone Alert: <strong>${data.mobile_success ? '✅ Delivered to your phone with sound!' : '⚠️ ' + (data.mobile_detail || 'Failed')}</strong><br>
+                &bull; 📧 Identified Account Email: <strong>${accEmail || 'Current Account'}</strong><br>
+                &bull; Rule verified: <code>${data.rule}</code>
+              </small>
+            `;
+          } else {
+            resBox.style.background = 'rgba(239, 68, 68, 0.15)';
+            resBox.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+            resBox.style.color = '#f87171';
+            resBox.innerHTML = `
+              <strong>⚠️ Threshold crossed, but Delivery Failed:</strong><br>
+              ${data.detail}<br>
+              <small>Check Bot Email & App Password or verify Mobile Push Channel.</small>
+            `;
+          }
+        } else {
+          if (data.detail && data.detail.includes('suppression')) {
+            resBox.style.background = 'rgba(245, 158, 11, 0.15)';
+            resBox.style.border = '1px solid rgba(245, 158, 11, 0.35)';
+            resBox.style.color = '#fbbf24';
+            resBox.innerHTML = `
+              <strong>🛡️ DUPLICATE ALERT SUPPRESSED (No repeated spam):</strong><br>
+              ${data.message}<br>
+              <small style="color: #fde68a;">Rule verified: ${data.rule}</small>
+            `;
+          } else {
+            resBox.style.background = 'rgba(59, 130, 246, 0.15)';
+            resBox.style.border = '1px solid rgba(59, 130, 246, 0.35)';
+            resBox.style.color = '#93c5fd';
+            resBox.innerHTML = `
+              <strong>ℹ️ NO ALERT NEEDED:</strong><br>
+              ${data.message}<br>
+              <small style="color: #bfdbfe;">Rule verified: ${data.rule}</small>
+            `;
+          }
+        }
+        fetchDashboard();
+      } catch (err) {
+        resBox.style.display = 'block';
+        resBox.style.background = 'rgba(239, 68, 68, 0.15)';
+        resBox.style.color = '#f87171';
+        resBox.innerHTML = 'Network error during threshold test: ' + err;
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = 'Verify 530 SB Alert';
+        btn.disabled = false;
+      }
+    }
+
+    function showBanner(bannerEl, type, html) {
+      bannerEl.style.display = 'block';
+      if (type === 'success') {
+        bannerEl.style.background = 'rgba(16, 185, 129, 0.15)';
+        bannerEl.style.border = '1px solid rgba(16, 185, 129, 0.35)';
+        bannerEl.style.color = '#34d399';
+      } else {
+        bannerEl.style.background = 'rgba(239, 68, 68, 0.15)';
+        bannerEl.style.border = '1px solid rgba(239, 68, 68, 0.35)';
+        bannerEl.style.color = '#f87171';
+      }
+      bannerEl.innerHTML = html;
+    }
+
+    // Manual check trigger
+    async function triggerManualCheck() {
+      const spinner = document.getElementById('checkSpinner');
+      const btnText = document.getElementById('checkBtnText');
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Checking...';
+      try {
+        await fetch('/api/check-now', { method: 'POST' });
+        setTimeout(fetchDashboard, 1500);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Account Management
+    function openAddAccountModal() {
+      document.getElementById('addAccountModal').classList.add('active');
+    }
+    function closeAddAccountModal() {
+      document.getElementById('addAccountModal').classList.remove('active');
+    }
+
+    async function submitCredentialsLogin() {
+      const email = document.getElementById('inputSbEmail').value.trim();
+      const password = document.getElementById('inputSbPassword').value.trim();
+      const nickname = document.getElementById('inputSbNick').value.trim();
+      const statusMsg = document.getElementById('loginStatusMsg');
+      const spinner = document.getElementById('loginSpinner');
+      const btnText = document.getElementById('loginBtnText');
+
+      if (!email || !password) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+        statusMsg.style.color = '#f87171';
+        statusMsg.innerText = 'Email and password are required.';
+        return;
+      }
+
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Logging In...';
+
+      try {
+        const res = await fetch('/api/accounts/login-credentials', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, account_id: nickname || null })
+        });
+        const data = await res.json();
+        if (data.success && data.status === 'logged_in') {
+          closeAddAccountModal();
+          fetchDashboard();
+        } else {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+          statusMsg.style.color = '#f87171';
+          statusMsg.innerText = data.error || data.detail || 'Login failed.';
+        }
+      } catch (err) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+        statusMsg.style.color = '#f87171';
+        statusMsg.innerText = 'Network error: ' + err;
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = '🚀 Connect & Login';
+      }
+    }
+
+    async function deleteAccount(accId) {
+      if (!confirm(`Are you sure you want to remove account '${accId}'?`)) return;
+      await fetch(`/api/accounts/${accId}/delete`, { method: 'POST' });
+      fetchDashboard();
+    }
+
+    // Tracker Settings
+    function openSettingsModal() {
+      document.getElementById('settingsModal').classList.add('active');
+    }
+    function closeSettingsModal() {
+      document.getElementById('settingsModal').classList.remove('active');
+    }
+    async function saveSettings() {
+      const interval = parseInt(document.getElementById('settingInterval').value) || 60;
+      const headless = document.getElementById('settingHeadless').checked;
+      await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval_seconds: interval, headless: headless })
+      });
+      closeSettingsModal();
+      fetchDashboard();
+    }
+
+    // History Modal
+    async function viewHistory(accId) {
+      document.getElementById('historyModalTitle').innerText = `Balance History: ${accId}`;
+      document.getElementById('historyModal').classList.add('active');
+      try {
+        const res = await fetch(`/api/history/${accId}`);
+        const result = await res.json();
+        const dataPoints = result.data || [];
+        const labels = dataPoints.map(p => p.timestamp.split(' ')[1] || p.timestamp);
+        const balances = dataPoints.map(p => p.sb_balance);
+        const ctx = document.getElementById('historyChart').getContext('2d');
+        if (chartInstance) chartInstance.destroy();
+        chartInstance = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: 'SB Balance',
+              data: balances,
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              fill: true,
+              tension: 0.3,
+              pointRadius: 4,
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } },
+              x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#9ca3af' } }
+            },
+            plugins: {
+              legend: { labels: { color: '#f3f4f6' } }
+            }
+          }
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
+    function closeHistoryModal() {
+      document.getElementById('historyModal').classList.remove('active');
+    }
+
+    // Auto-poll every 2 seconds
+    fetchDashboard();
+    setInterval(fetchDashboard, 2000);
+  </script>
+</body>
+</html>

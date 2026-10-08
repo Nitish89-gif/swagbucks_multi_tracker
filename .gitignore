@@ -1,0 +1,45 @@
+# Browser session data (Never commit session cookies or local storage)
+browser_sessions/
+
+# SQLite Database and local data
+data/
+*.db
+*.sqlite3
+
+# Environment variables & secrets
+.env
+.env.*
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Cloudflared binaries & logs
+cloudflared.exe
+*.log
+*.pid
+current_public_url.txt
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Temporary folders & certs
+certs/
+scratch/
+
+# IDE & Editor folders
+.vscode/
+.idea/
+
+# OS specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.DS_Store

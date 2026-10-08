@@ -1,0 +1,9 @@
+playwright>=1.40.0
+rich>=13.7.0
+aiofiles>=23.2.0
+python-dotenv>=1.0.0
+fastapi>=0.110.0
+uvicorn>=0.28.0
+cryptography>=42.0.0
+pillow>=10.0.0
+
