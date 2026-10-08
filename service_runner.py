@@ -59,13 +59,13 @@ def is_already_running():
     if PID_FILE.exists():
         try:
             pid = int(PID_FILE.read_text().strip())
-            # Check if pid is active
-            import ctypes
-            kernel32 = ctypes.windll.kernel32
-            SYNCHRONIZE = 0x00100000
-            process = kernel32.OpenProcess(SYNCHRONIZE, False, pid)
-            if process != 0:
-                kernel32.CloseHandle(process)
+            res = subprocess.run(
+                ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                capture_output=True,
+                text=True,
+                creationflags=CREATE_NO_WINDOW
+            )
+            if str(pid) in res.stdout:
                 return True
         except Exception:
             pass
