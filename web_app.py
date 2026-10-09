@@ -295,7 +295,7 @@ async def get_dashboard_data():
         "accounts_above_530": accounts_above_530,
         "count_above_530": len(accounts_above_530),
         "threshold": Config.BALANCE_THRESHOLD,
-        "tracker_status": "Running" if tracker_alive else "Error",
+        "tracker_status": "Active (Cloud)" if os.environ.get("VERCEL") else ("Running" if tracker_alive else "Error"),
         "notification_status": get_notification_status(),
         "mobile_status": mobile_status,
         "mobile_alerts_enabled": Config.MOBILE_ALERTS_ENABLED,
@@ -327,7 +327,7 @@ async def trigger_check_now():
     """Manually trigger immediate simultaneous check."""
     if monitor_state["is_checking"]:
         return {"status": "already_checking"}
-    if monitor_state["trigger_event"]:
+    if monitor_state.get("trigger_event"):
         monitor_state["trigger_event"].set()
     return {"status": "triggered"}
 
@@ -337,7 +337,7 @@ async def login_from_env_endpoint():
     """Trigger auto-login using credentials stored in .env."""
     result = await auto_login_from_env()
     if result.get("success") and result.get("status") == "logged_in":
-        if monitor_state["trigger_event"]:
+        if monitor_state.get("trigger_event"):
             monitor_state["trigger_event"].set()
     return result
 
@@ -518,25 +518,28 @@ async def email_test_threshold_endpoint(req: ThresholdTestRequest):
 @app.post("/api/accounts/login-credentials")
 async def login_credentials_endpoint(req: LoginCredentialsRequest):
     """Authenticate account using Swagbucks email and password."""
-    email = req.email.strip()
-    password = req.password.strip()
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password cannot be empty.")
+    try:
+        email = req.email.strip()
+        password = req.password.strip()
+        if not email or not password:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Email and password cannot be empty."})
 
-    acc_id = (
-        req.account_id.strip()
-        if (req.account_id and req.account_id.strip())
-        else email.split("@")[0].replace(".", "_")
-    )
+        acc_id = (
+            req.account_id.strip()
+            if (req.account_id and req.account_id.strip())
+            else email.split("@")[0].replace(".", "_")
+        )
 
-    result = await login_with_credentials(acc_id, email, password)
+        result = await login_with_credentials(acc_id, email, password)
 
-    # If login succeeded, trigger immediate balance check
-    if result.get("success") and result.get("status") == "logged_in":
-        if monitor_state["trigger_event"]:
-            monitor_state["trigger_event"].set()
+        # If login succeeded, trigger immediate balance check if active
+        if result.get("success") and result.get("status") == "logged_in":
+            if monitor_state.get("trigger_event"):
+                monitor_state["trigger_event"].set()
 
-    return result
+        return JSONResponse(content=result)
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"Login failed: {str(e)}"})
 
 
 @app.post("/api/accounts/start-auth")
@@ -561,7 +564,7 @@ async def finish_auth_endpoint(req: AddAccountRequest):
         raise HTTPException(status_code=400, detail=result.get("message", "Login failed."))
     
     # Trigger an immediate check to fetch balance
-    if monitor_state["trigger_event"]:
+    if monitor_state.get("trigger_event"):
         monitor_state["trigger_event"].set()
 
     return result

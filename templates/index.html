@@ -1467,7 +1467,14 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email, password, account_id: nickname || null })
         });
-        const data = await res.json();
+        let data;
+        try {
+          data = await res.json();
+        } catch (jsonErr) {
+          const rawText = await res.text().catch(() => "");
+          data = { success: false, error: rawText || `Server error (HTTP ${res.status})` };
+        }
+
         if (data.success && data.status === 'logged_in') {
           closeAddAccountModal();
           fetchDashboard();
@@ -1475,13 +1482,13 @@
           statusMsg.style.display = 'block';
           statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
           statusMsg.style.color = '#f87171';
-          statusMsg.innerText = data.error || data.detail || 'Login failed.';
+          statusMsg.innerText = data.error || data.detail || data.message || 'Login failed.';
         }
       } catch (err) {
         statusMsg.style.display = 'block';
         statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
         statusMsg.style.color = '#f87171';
-        statusMsg.innerText = 'Network error: ' + err;
+        statusMsg.innerText = 'Network error: ' + (err.message || err);
       } finally {
         spinner.style.display = 'none';
         btnText.innerText = '🚀 Connect & Login';
