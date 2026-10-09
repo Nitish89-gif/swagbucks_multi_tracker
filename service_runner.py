@@ -54,6 +54,31 @@ NTFY_TOPIC = "sb_alerts_9676061877"
 # Windows flags to suppress console windows
 CREATE_NO_WINDOW = 0x08000000
 
+# Windows sleep prevention flags (prevents PC from sleeping while tracker runs)
+ES_CONTINUOUS = 0x80000000
+ES_SYSTEM_REQUIRED = 0x00000001
+ES_AWAYMODE_REQUIRED = 0x00000040
+
+
+def set_sleep_prevention(enable: bool = True):
+    """
+    Informs Windows that the system is performing vital background operations,
+    preventing idle sleep and standby even when the laptop lid is closed.
+    """
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            if enable:
+                res = ctypes.windll.kernel32.SetThreadExecutionState(
+                    ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED
+                )
+                logging.info("Windows sleep prevention activated (status: 0x%08X).", res if res is not None else 0)
+            else:
+                ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+                logging.info("Windows sleep prevention released.")
+        except Exception as e:
+            logging.warning("Could not set Windows execution state: %s", e)
+
 
 def is_already_running():
     if PID_FILE.exists():
@@ -199,6 +224,7 @@ def main():
     last_known_url = None
 
     try:
+        set_sleep_prevention(True)
         backend_proc = start_backend()
         tunnel_proc, last_known_url = start_tunnel()
 
@@ -232,6 +258,7 @@ def main():
     except Exception as e:
         logging.exception("Unexpected error in service runner: %s", e)
     finally:
+        set_sleep_prevention(False)
         logging.info("Shutting down child processes...")
         try:
             if backend_proc and backend_proc.poll() is None:

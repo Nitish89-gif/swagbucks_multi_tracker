@@ -168,9 +168,28 @@ async def background_monitoring_worker():
             await asyncio.sleep(5)
 
 
+def set_windows_sleep_prevention(enable: bool = True):
+    """Keep Windows awake and active even when lid is closed or machine is unattended."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            ES_CONTINUOUS = 0x80000000
+            ES_SYSTEM_REQUIRED = 0x00000001
+            ES_AWAYMODE_REQUIRED = 0x00000040
+            if enable:
+                ctypes.windll.kernel32.SetThreadExecutionState(
+                    ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_AWAYMODE_REQUIRED
+                )
+            else:
+                ctypes.windll.kernel32.SetThreadExecutionState(ES_CONTINUOUS)
+        except Exception:
+            pass
+
+
 @app.on_event("startup")
 async def on_startup():
     """Initialize DB and start background monitoring worker once."""
+    set_windows_sleep_prevention(True)
     if monitor_state.get("task") is None:
         init_db()
         monitor_state["trigger_event"] = asyncio.Event()
@@ -187,6 +206,7 @@ async def on_startup():
 @app.on_event("shutdown")
 async def on_shutdown():
     """Cancel background worker on shutdown."""
+    set_windows_sleep_prevention(False)
     if monitor_state.get("task"):
         monitor_state["task"].cancel()
         monitor_state["task"] = None
