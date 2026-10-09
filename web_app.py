@@ -189,9 +189,11 @@ def set_windows_sleep_prevention(enable: bool = True):
 @app.on_event("startup")
 async def on_startup():
     """Initialize DB and start background monitoring worker once."""
+    init_db()
+    if os.environ.get("VERCEL"):
+        return
     set_windows_sleep_prevention(True)
     if monitor_state.get("task") is None:
-        init_db()
         monitor_state["trigger_event"] = asyncio.Event()
         monitor_state["task"] = asyncio.create_task(background_monitoring_worker())
 

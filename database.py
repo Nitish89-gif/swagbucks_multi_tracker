@@ -3,12 +3,16 @@ Database management module for Swagbucks Multi-Account Tracker.
 Handles SQLite persistence for account sessions, historical balances, and stats.
 """
 
+import os
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-DB_DIR = Path(__file__).resolve().parent / "data"
+if os.environ.get("VERCEL"):
+    DB_DIR = Path("/tmp/data")
+else:
+    DB_DIR = Path(__file__).resolve().parent / "data"
 DB_PATH = DB_DIR / "sb_history.db"
 
 
