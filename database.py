@@ -477,8 +477,20 @@ def batch_sync_accounts(account_list: List[Dict[str, Any]]) -> int:
         email = item.get("email") or acc_id
         nickname = item.get("nickname") or email
         sb = item.get("current_sb") if "current_sb" in item else item.get("sb_balance", 0)
+        ip_used = item.get("ip_used") or "Batch IP (Cloud)"
         register_account(acc_id, nickname=nickname, status="ACTIVE", email=email)
-        update_account_balance(acc_id, int(sb))
+        last_rec = get_latest_record(acc_id)
+        prev_balance = last_rec["sb_balance"] if (last_rec and last_rec["sb_balance"] is not None) else int(sb)
+        change = int(sb) - prev_balance
+        record_balance(
+            account_id=acc_id,
+            sb_balance=int(sb),
+            prev_balance=prev_balance,
+            balance_change=change,
+            session_status="Logged In",
+            ip_used=ip_used,
+        )
+        set_account_status(acc_id, "ACTIVE")
         count += 1
     return count
 

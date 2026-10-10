@@ -42,13 +42,14 @@ jobs:
           BALANCE_THRESHOLD: "530"
           CLOUD_MIN_GAP: "10"
           CLOUD_MAX_GAP: "20"
+          VERCEL_DASHBOARD_URL: "https://swagbucksmultitracker.vercel.app"
         run: |
           python cloud_checker.py
 
-      - name: Commit & Push Updated Balances to GitHub & Vercel
+      - name: Commit & Push Updated Balances to GitHub
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data/sb_history.db data/sb_history_seed.db data/sessions/*.json
-          git commit -m "Auto-update Swagbucks balances from 24h cloud runner [skip ci]" || echo "No changes to commit"
+          git commit -m "Auto-update Swagbucks balances from 24h cloud runner" || echo "No changes to commit"
           git push origin main || echo "Nothing to push"

@@ -249,6 +249,32 @@ async def run_cloud_check(min_gap: int = 5, max_gap: int = 10):
         shutil.copyfile(str(db_file), str(seed_file))
         print("[+] Synced database to sb_history_seed.db")
 
+    # Sync live results directly to Vercel production dashboard
+    try:
+        import urllib.request
+        vercel_url = os.getenv("VERCEL_DASHBOARD_URL", "https://swagbucksmultitracker.vercel.app")
+        sync_payload = {
+            "accounts": [
+                {
+                    "account_id": r["account_id"],
+                    "email": get_account_email(r["account_id"]),
+                    "current_sb": r["current_sb"],
+                    "ip_used": r["ip_used"],
+                }
+                for r in results if r.get("status") == "Logged In" or r.get("current_sb") is not None
+            ]
+        }
+        req_data = json.dumps(sync_payload).encode("utf-8")
+        req = urllib.request.Request(
+            f"{vercel_url.rstrip('/')}/api/sync-accounts",
+            data=req_data,
+            headers={"Content-Type": "application/json", "User-Agent": "SwagbucksCloudRunner/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            print(f"[+] Successfully pushed cloud check results to Vercel ({resp.status})")
+    except Exception as e:
+        print(f"[!] Warning syncing results to Vercel: {e}")
+
     print("\n=== SUMMARY OF CLOUD CHECK ===")
     for r in results:
         print(f"  * {r['account_id']:20} -> {r['current_sb']:>5} SB | IP: {r['ip_used']}")
