@@ -134,7 +134,10 @@ def seed_database_if_needed():
 def get_connection() -> sqlite3.Connection:
     """Ensure database directory exists, seeds data if needed, and returns an active SQLite connection."""
     seed_database_if_needed()
-    DB_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        DB_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=15)
     conn.row_factory = sqlite3.Row
     try:
@@ -262,15 +265,15 @@ def init_db() -> None:
                 sb = item["sb_balance"]
                 cursor.execute(
                     """
-                    INSERT INTO accounts (account_id, nickname, status, email, password, last_updated)
-                    VALUES (?, ?, 'ACTIVE', ?, NULL, ?)
+                    INSERT INTO accounts (account_id, nickname, status, email, password, last_updated, day_start_sb, day_start_date, last_fetch_ip)
+                    VALUES (?, ?, 'ACTIVE', ?, NULL, ?, ?, ?, '104.28.192.45')
                     """,
-                    (acc_id, nick, em, ts),
+                    (acc_id, nick, em, ts, sb, datetime.now().strftime("%Y-%m-%d")),
                 )
                 cursor.execute(
                     """
-                    INSERT INTO sb_history (account_id, timestamp, sb_balance, prev_balance, balance_change, session_status, error_message)
-                    VALUES (?, ?, ?, ?, 0, 'Logged In', NULL)
+                    INSERT INTO sb_history (account_id, timestamp, sb_balance, prev_balance, balance_change, session_status, error_message, ip_used)
+                    VALUES (?, ?, ?, ?, 0, 'Logged In', NULL, '104.28.192.45')
                     """,
                     (acc_id, ts, sb, sb),
                 )

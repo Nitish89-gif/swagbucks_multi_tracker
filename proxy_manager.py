@@ -17,11 +17,23 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger("proxy_manager")
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+if os.environ.get("VERCEL"):
+    DATA_DIR = Path("/tmp/data")
+else:
+    DATA_DIR = BASE_DIR / "data"
+
+try:
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+except Exception:
+    DATA_DIR = Path("/tmp/data")
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
 
 PROXIES_FILE = DATA_DIR / "proxies.txt"
 CACHE_PROXIES_FILE = DATA_DIR / "working_proxies.json"
+SEED_PROXIES_FILE = BASE_DIR / "data" / "proxies.txt"
 
 # Public proxy scrapers for automatic free proxy pool rotation
 PUBLIC_PROXY_SOURCES = [
@@ -50,16 +62,19 @@ class ProxyManager:
         """Load proxies from data/proxies.txt, .env PROXY_LIST, or cached working proxies."""
         loaded: List[str] = []
 
-        # 1. Check data/proxies.txt
-        if PROXIES_FILE.exists():
-            try:
-                lines = PROXIES_FILE.read_text(encoding="utf-8").splitlines()
-                for line in lines:
-                    line = line.strip()
-                    if line and not line.startswith("#"):
-                        loaded.append(line)
-            except Exception as e:
-                logger.warning(f"Error reading {PROXIES_FILE}: {e}")
+        # 1. Check data/proxies.txt and fallback seed file
+        for candidate_file in [PROXIES_FILE, SEED_PROXIES_FILE]:
+            if candidate_file.exists():
+                try:
+                    lines = candidate_file.read_text(encoding="utf-8").splitlines()
+                    for line in lines:
+                        line = line.strip()
+                        if line and not line.startswith("#"):
+                            loaded.append(line)
+                    if loaded:
+                        break
+                except Exception as e:
+                    logger.warning(f"Error reading {candidate_file}: {e}")
 
         # 2. Check .env / os.getenv PROXY_LIST
         env_proxies = os.getenv("PROXY_LIST", "").strip()
