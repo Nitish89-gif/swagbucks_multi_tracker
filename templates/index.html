@@ -785,6 +785,7 @@
         <div class="kpi-title" style="color: #fbbf24;">🕒 LAST CHECKED TIME</div>
         <div class="kpi-value" id="kpiLastChecked" style="font-size: 14px; color: #fde68a; font-family: 'JetBrains Mono', monospace; word-break: break-all;">--</div>
         <div class="kpi-sub" id="kpiLastCheckedSub">Every 24h &bull; Midnight 00:00</div>
+        <div style="font-size: 11px; color: #38bdf8; margin-top: 4px; font-weight: 600;">⏳ Next in: <span id="kpiCountdown" style="font-family: 'JetBrains Mono', monospace;">--</span></div>
       </div>
     </div>
 
@@ -1362,18 +1363,57 @@
 
       // 6. 24-HOUR COUNTDOWN & BANNER
       function formatSeconds(sec) {
-        if (!sec || sec <= 0) return '00:00:00';
+        if (!sec || sec <= 0) return '00h 00m 00s';
         const h = Math.floor(sec / 3600);
         const m = Math.floor((sec % 3600) / 60);
         const s = sec % 60;
         return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
       }
-      const bannerCountdown = document.getElementById('bannerCountdown');
+
+      function getLocalSecondsToMidnight() {
+        const now = new Date();
+        const nextMidnight = new Date(now);
+        nextMidnight.setHours(24, 0, 0, 0); // 12:00 AM Midnight
+        return Math.max(0, Math.floor((nextMidnight.getTime() - now.getTime()) / 1000));
+      }
+
+      function updateCountdownUI() {
+        const sec = (window._activeCountdownSec !== undefined && window._activeCountdownSec > 0) 
+          ? window._activeCountdownSec 
+          : getLocalSecondsToMidnight();
+        const formatted = formatSeconds(sec);
+        const bannerCountdown = document.getElementById('bannerCountdown');
+        const kpiCountdown = document.getElementById('kpiCountdown');
+        if (bannerCountdown) bannerCountdown.innerText = formatted;
+        if (kpiCountdown) kpiCountdown.innerText = formatted;
+      }
+
+      // Initialize real-time 1-second ticker loop
+      if (!window._countdownTimerInterval) {
+        window._activeCountdownSec = getLocalSecondsToMidnight();
+        updateCountdownUI();
+        window._countdownTimerInterval = setInterval(() => {
+          if (window._activeCountdownSec > 0) {
+            window._activeCountdownSec--;
+          } else {
+            window._activeCountdownSec = getLocalSecondsToMidnight();
+          }
+          updateCountdownUI();
+        }, 1000);
+      }
+
+      // Sync remaining seconds from server or local midnight
+      if (data.countdown_seconds && data.countdown_seconds > 0) {
+        window._activeCountdownSec = data.countdown_seconds;
+      } else {
+        window._activeCountdownSec = getLocalSecondsToMidnight();
+      }
+      updateCountdownUI();
+
       const bannerTarget = document.getElementById('bannerTargetTime');
       const bannerNextCheck = document.getElementById('bannerNextCheckTime');
-      if (bannerCountdown) bannerCountdown.innerText = formatSeconds(data.countdown_seconds);
-      if (bannerTarget) bannerTarget.innerText = `${data.target_check_time || '00:00'} (12:00 AM Midnight)`;
-      if (bannerNextCheck) bannerNextCheck.innerText = data.next_scheduled_check || 'Tonight at 00:00:00';
+      if (bannerTarget) bannerTarget.innerText = `12:00 AM Midnight (00:00 IST)`;
+      if (bannerNextCheck) bannerNextCheck.innerText = data.next_scheduled_check || 'Tonight at 12:00 AM Midnight';
 
       // 7. LIVE ANTI-BOT PROGRESS & 2-3 MIN GAP STATUS
       const liveProgressCard = document.getElementById('liveProgressCard');

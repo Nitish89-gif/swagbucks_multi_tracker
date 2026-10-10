@@ -86,8 +86,15 @@ async def get_apple_touch_icon():
     raise HTTPException(status_code=404, detail="Icon not found")
 
 def get_seconds_to_next_midnight(target_time_str: str = "00:00") -> Tuple[int, str]:
-    """Calculate seconds and target timestamp until midnight / target daily check time."""
-    now = datetime.now()
+    """Calculate seconds and target timestamp until midnight / target daily check time in IST."""
+    from datetime import timezone
+    if os.environ.get("VERCEL"):
+        # India Standard Time (UTC+5:30)
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        now = datetime.now(ist_tz)
+    else:
+        now = datetime.now()
+
     try:
         parts = target_time_str.split(":")
         target_h, target_m = int(parts[0]), int(parts[1])
@@ -386,10 +393,10 @@ async def get_dashboard_data():
         "swagbucks_email": Config.SWAGBUCKS_EMAIL,
         "has_email_password": bool(Config.SMTP_PASSWORD),
         "last_successful_check": last_success,
-        "countdown_seconds": monitor_state["countdown_seconds"],
+        "countdown_seconds": get_seconds_to_next_midnight(monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00"))[0],
         "interval_seconds": monitor_state["interval_seconds"],
         "target_check_time": monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00"),
-        "next_scheduled_check": monitor_state.get("next_scheduled_check"),
+        "next_scheduled_check": get_seconds_to_next_midnight(monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00"))[1],
         "is_checking": monitor_state["is_checking"],
         "checking_state": monitor_state.get("checking_state", "idle"),
         "current_checking_account": monitor_state.get("current_checking_account"),
