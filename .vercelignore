@@ -4,11 +4,11 @@ __pycache__
 __pycache__/
 *.py[cod]
 browser_sessions
-browser_sessions/
 data
 data/
 cloudflared.exe
 *.db
+*.sqlite3
 .git
 .git/
 certs

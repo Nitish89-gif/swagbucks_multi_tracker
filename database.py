@@ -4,20 +4,136 @@ Handles SQLite persistence for account sessions, historical balances, and stats.
 """
 
 import os
+import shutil
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+SEED_DB_PATH = PROJECT_ROOT / "data" / "sb_history_seed.db"
+
 if os.environ.get("VERCEL"):
     DB_DIR = Path("/tmp/data")
 else:
-    DB_DIR = Path(__file__).resolve().parent / "data"
+    DB_DIR = PROJECT_ROOT / "data"
 DB_PATH = DB_DIR / "sb_history.db"
+
+DEFAULT_SEED_ACCOUNTS = [
+    {
+        "account_id": "pasumarthinitish",
+        "nickname": "pasumarthinitish@gmail.com",
+        "email": "pasumarthinitish@gmail.com",
+        "sb_balance": 189,
+        "timestamp": "2026-10-09 12:11:59",
+    },
+    {
+        "account_id": "nitishjaya2006",
+        "nickname": "nitishjaya2006@gmail.com",
+        "email": "nitishjaya2006@gmail.com",
+        "sb_balance": 278,
+        "timestamp": "2026-10-09 12:13:10",
+    },
+    {
+        "account_id": "nitishjaya2007",
+        "nickname": "nitishjaya2007@gmail.com",
+        "email": "nitishjaya2007@gmail.com",
+        "sb_balance": 215,
+        "timestamp": "2026-10-09 12:13:10",
+    },
+    {
+        "account_id": "nitishjaya2009",
+        "nickname": "nitishjaya2009@gmail.com",
+        "email": "nitishjaya2009@gmail.com",
+        "sb_balance": 66,
+        "timestamp": "2026-10-09 12:11:44",
+    },
+    {
+        "account_id": "nitishpasuma",
+        "nickname": "nitishpasuma@yahoo.com",
+        "email": "nitishpasuma@yahoo.com",
+        "sb_balance": 35,
+        "timestamp": "2026-10-09 12:11:49",
+    },
+    {
+        "account_id": "dndndbfnf571",
+        "nickname": "dndndbfnf571@gmail.com",
+        "email": "dndndbfnf571@gmail.com",
+        "sb_balance": 15,
+        "timestamp": "2026-10-09 12:13:05",
+    },
+    {
+        "account_id": "unit8creativestudio",
+        "nickname": "unit8creativestudio@yahoo.com",
+        "email": "unit8creativestudio@yahoo.com",
+        "sb_balance": 472,
+        "timestamp": "2026-10-09 12:11:59",
+    },
+    {
+        "account_id": "nitishjaya2011",
+        "nickname": "nitishjaya2011@outlook.com",
+        "email": "nitishjaya2011@outlook.com",
+        "sb_balance": 372,
+        "timestamp": "2026-10-09 12:11:49",
+    },
+    {
+        "account_id": "nitishjaya2005",
+        "nickname": "nitishjaya2005@gmail.com",
+        "email": "nitishjaya2005@gmail.com",
+        "sb_balance": 51,
+        "timestamp": "2026-10-09 12:13:05",
+    },
+    {
+        "account_id": "npasumar2",
+        "nickname": "npasumar2@gitam.in",
+        "email": "npasumar2@gitam.in",
+        "sb_balance": 71,
+        "timestamp": "2026-10-09 12:11:54",
+    },
+    {
+        "account_id": "pasumanigish",
+        "nickname": "pasumanigish@gmail.com",
+        "email": "pasumanigish@gmail.com",
+        "sb_balance": 517,
+        "timestamp": "2026-10-09 12:11:54",
+    },
+    {
+        "account_id": "nitishjaya2008",
+        "nickname": "nitishjaya2008@gmail.com",
+        "email": "nitishjaya2008@gmail.com",
+        "sb_balance": 50,
+        "timestamp": "2026-10-09 12:11:44",
+    },
+]
+
+
+def seed_database_if_needed():
+    """Ensure database has initial seed data on cold starts or Vercel deployments."""
+    try:
+        DB_DIR.mkdir(parents=True, exist_ok=True)
+        should_seed = False
+        if not DB_PATH.exists() or DB_PATH.stat().st_size == 0:
+            should_seed = True
+        else:
+            try:
+                conn_chk = sqlite3.connect(str(DB_PATH), timeout=3)
+                cur_chk = conn_chk.cursor()
+                row = cur_chk.execute("SELECT COUNT(*) FROM accounts").fetchone()
+                conn_chk.close()
+                if not row or row[0] == 0:
+                    should_seed = True
+            except Exception:
+                should_seed = True
+
+        if should_seed and SEED_DB_PATH.exists():
+            shutil.copyfile(str(SEED_DB_PATH), str(DB_PATH))
+    except Exception as e:
+        pass
 
 
 def get_connection() -> sqlite3.Connection:
-    """Ensure database directory exists and returns an active SQLite connection."""
+    """Ensure database directory exists, seeds data if needed, and returns an active SQLite connection."""
+    seed_database_if_needed()
     DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False, timeout=15)
     conn.row_factory = sqlite3.Row
@@ -113,6 +229,31 @@ def init_db() -> None:
             cursor.execute("ALTER TABLE accounts ADD COLUMN tracking_error_alerted INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass
+
+        # Ensure default seed accounts exist if database is empty
+        cursor.execute("SELECT COUNT(*) FROM accounts")
+        count_row = cursor.fetchone()
+        if not count_row or count_row[0] == 0:
+            for item in DEFAULT_SEED_ACCOUNTS:
+                acc_id = item["account_id"]
+                nick = item["nickname"]
+                em = item["email"]
+                ts = item.get("timestamp") or "2026-10-09 12:13:10"
+                sb = item["sb_balance"]
+                cursor.execute(
+                    """
+                    INSERT INTO accounts (account_id, nickname, status, email, password, last_updated)
+                    VALUES (?, ?, 'ACTIVE', ?, NULL, ?)
+                    """,
+                    (acc_id, nick, em, ts),
+                )
+                cursor.execute(
+                    """
+                    INSERT INTO sb_history (account_id, timestamp, sb_balance, prev_balance, balance_change, session_status, error_message)
+                    VALUES (?, ?, ?, ?, 0, 'Logged In', NULL)
+                    """,
+                    (acc_id, ts, sb, sb),
+                )
 
         conn.commit()
 
@@ -229,6 +370,53 @@ def record_balance(
         )
         conn.commit()
         return cursor.lastrowid
+
+
+def update_account_balance(account_id: str, new_balance: int, note: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Update or set an account's SB balance directly.
+    Calculates change from previous record, records into sb_history with 'Logged In',
+    updates account last_updated, and returns updated details.
+    """
+    last_record = get_latest_record(account_id)
+    prev_balance = last_record["sb_balance"] if (last_record and last_record["sb_balance"] is not None) else 0
+    change = new_balance - prev_balance
+
+    record_balance(
+        account_id=account_id,
+        sb_balance=new_balance,
+        prev_balance=prev_balance,
+        balance_change=change,
+        session_status="Logged In",
+        error_message=note,
+    )
+    set_account_status(account_id, "ACTIVE")
+    return {
+        "account_id": account_id,
+        "prev_balance": prev_balance,
+        "current_balance": new_balance,
+        "change": change,
+        "status": "Logged In"
+    }
+
+
+def batch_sync_accounts(account_list: List[Dict[str, Any]]) -> int:
+    """
+    Bulk sync accounts and their latest balances into the database.
+    Used by cloud sync or import.
+    """
+    count = 0
+    for item in account_list:
+        acc_id = item.get("account_id")
+        if not acc_id:
+            continue
+        email = item.get("email") or acc_id
+        nickname = item.get("nickname") or email
+        sb = item.get("current_sb") if "current_sb" in item else item.get("sb_balance", 0)
+        register_account(acc_id, nickname=nickname, status="ACTIVE", email=email)
+        update_account_balance(acc_id, int(sb))
+        count += 1
+    return count
 
 
 def get_account_stats(account_id: str) -> Dict[str, Any]:

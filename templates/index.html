@@ -894,6 +894,11 @@
         <input type="text" class="form-input" id="inputSbNick" placeholder="e.g. Primary Account">
       </div>
 
+      <div class="form-group">
+        <label class="form-label">Current SB Balance (Optional)</label>
+        <input type="number" class="form-input" id="inputSbInitial" placeholder="0" min="0">
+      </div>
+
       <div id="loginStatusMsg" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;"></div>
 
       <div class="modal-actions">
@@ -901,6 +906,47 @@
         <button class="btn btn-primary" id="btnLoginSubmit" onclick="submitCredentialsLogin()">
           <span id="loginSpinner" class="spinner" style="display: none;"></span>
           <span id="loginBtnText">🚀 Connect & Login</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Update SB Balance Modal -->
+  <div class="modal-overlay" id="updateBalanceModal">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Update SB Balance</div>
+        <button class="close-btn" onclick="closeUpdateBalanceModal()">&times;</button>
+      </div>
+
+      <div style="background: rgba(37, 99, 235, 0.08); border: 1px solid rgba(37, 99, 235, 0.25); border-radius: 8px; padding: 12px; font-size: 12px; color: #bfdbfe; margin-bottom: 14px;">
+        Update or set the current Swagbucks balance for this account. Crossing 530+ SB automatically triggers instant alerts.
+      </div>
+
+      <input type="hidden" id="updateAccId">
+
+      <div class="form-group">
+        <label class="form-label">Account</label>
+        <input type="text" class="form-input" id="updateAccEmail" disabled style="opacity: 0.85; background: rgba(255, 255, 255, 0.04);">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">New SB Balance *</label>
+        <input type="number" class="form-input" id="updateNewSb" placeholder="e.g. 540" min="0" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Optional Note</label>
+        <input type="text" class="form-input" id="updateNote" placeholder="e.g. Manual sync, Survey completed">
+      </div>
+
+      <div id="updateStatusMsg" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px;"></div>
+
+      <div class="modal-actions">
+        <button class="btn" onclick="closeUpdateBalanceModal()">Cancel</button>
+        <button class="btn btn-primary" id="btnUpdateBalanceSubmit" onclick="submitUpdateBalance()">
+          <span id="updateSpinner" class="spinner" style="display: none;"></span>
+          <span id="updateBtnText">💾 Save Balance</span>
         </button>
       </div>
     </div>
@@ -958,8 +1004,11 @@
         <div id="modalTargetEmail" style="font-size: 16px; font-weight: 700; color: #60a5fa; font-family: 'JetBrains Mono', monospace; word-break: break-all;"></div>
       </div>
 
-      <div style="margin-bottom: 18px;">
-        <a href="https://www.swagbucks.com/p/login" target="_blank" rel="noopener noreferrer" onclick="closeAccountLoginModal()" class="btn btn-primary" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px; font-weight: 700; font-size: 14px; text-decoration: none;">
+      <div style="margin-bottom: 14px; display: flex; flex-direction: column; gap: 8px;">
+        <button class="btn btn-primary" onclick="openUpdateBalanceFromLoginModal()" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; font-weight: 700; font-size: 13px;">
+          ✏️ Update / Set SB Balance
+        </button>
+        <a href="https://www.swagbucks.com/p/login" target="_blank" rel="noopener noreferrer" onclick="closeAccountLoginModal()" class="btn" style="display: flex; align-items: center; justify-content: center; gap: 8px; padding: 11px; font-weight: 600; font-size: 13px; text-decoration: none;">
           🌐 Open Swagbucks Login Page
         </a>
       </div>
@@ -1246,7 +1295,10 @@
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
               <span class="tc-meta" style="color: #fde68a; font-weight: 600;">🕒 Last Checked: ${acc.last_check_time || '--'}</span>
-              <button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="viewHistory('${acc.account_id}')">📊 History</button>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm btn-primary" style="padding: 3px 8px; font-size: 11px;" onclick="openUpdateBalanceModal('${acc.account_id}', '${acc.email || acc.account_id}', ${acc.current_sb || 0})">✏️ Update SB</button>
+                <button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="viewHistory('${acc.account_id}')">📊 History</button>
+              </div>
             </div>
           </div>
         `).join('');
@@ -1305,6 +1357,7 @@
             <div class="aic-bottom">
               <span class="aic-meta">Threshold: 530 SB &bull; Alert: ${isAbove ? 'Triggered / Monitored' : 'Monitoring'}</span>
               <div class="aic-actions">
+                <button class="btn btn-sm btn-primary" style="padding: 4px 10px; font-size: 12px;" onclick="openUpdateBalanceModal('${acc.account_id}', '${acc.email || acc.account_id}', ${acc.current_sb || 0})">✏️ Update SB</button>
                 <button class="btn btn-sm" onclick="viewHistory('${acc.account_id}')">📊 History</button>
                 <button class="btn btn-danger btn-sm" onclick="deleteAccount('${acc.account_id}')">🗑️</button>
               </div>
@@ -1428,9 +1481,12 @@
       btnText.innerText = ' Checking...';
       try {
         await fetch('/api/check-now', { method: 'POST' });
-        setTimeout(fetchDashboard, 1500);
+        await fetchDashboard();
       } catch (e) {
         console.error(e);
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = '🔄 Check Now';
       }
     }
 
@@ -1442,10 +1498,83 @@
       document.getElementById('addAccountModal').classList.remove('active');
     }
 
+    // Update SB Balance Modal Handlers
+    function openUpdateBalanceModal(accId, email, currentSb) {
+      document.getElementById('updateAccId').value = accId;
+      document.getElementById('updateAccEmail').value = email || accId;
+      document.getElementById('updateNewSb').value = (currentSb !== undefined && currentSb !== null) ? currentSb : '';
+      document.getElementById('updateNote').value = '';
+      const msg = document.getElementById('updateStatusMsg');
+      if (msg) msg.style.display = 'none';
+      document.getElementById('updateBalanceModal').classList.add('active');
+    }
+
+    function closeUpdateBalanceModal() {
+      document.getElementById('updateBalanceModal').classList.remove('active');
+    }
+
+    function openUpdateBalanceFromLoginModal() {
+      if (!currentLoginModalAccount) return;
+      const { accountId, email } = currentLoginModalAccount;
+      closeAccountLoginModal();
+      openUpdateBalanceModal(accountId, email, 0);
+    }
+
+    async function submitUpdateBalance() {
+      const accId = document.getElementById('updateAccId').value;
+      const sbVal = parseInt(document.getElementById('updateNewSb').value);
+      const note = document.getElementById('updateNote').value.trim();
+      const statusMsg = document.getElementById('updateStatusMsg');
+      const spinner = document.getElementById('updateSpinner');
+      const btnText = document.getElementById('updateBtnText');
+
+      if (isNaN(sbVal) || sbVal < 0) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+        statusMsg.style.color = '#f87171';
+        statusMsg.innerText = 'Please enter a valid non-negative SB balance.';
+        return;
+      }
+
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Saving...';
+
+      try {
+        const res = await fetch('/api/accounts/update-balance', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account_id: accId,
+            sb_balance: sbVal,
+            note: note || 'Manual balance update'
+          })
+        });
+        const result = await res.json();
+        if (result.success) {
+          closeUpdateBalanceModal();
+          await fetchDashboard();
+        } else {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+          statusMsg.style.color = '#f87171';
+          statusMsg.innerText = result.error || 'Failed to update balance.';
+        }
+      } catch (err) {
+        statusMsg.style.display = 'block';
+        statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+        statusMsg.style.color = '#f87171';
+        statusMsg.innerText = 'Network error: ' + (err.message || err);
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = '💾 Save Balance';
+      }
+    }
+
     async function submitCredentialsLogin() {
       const email = document.getElementById('inputSbEmail').value.trim();
       const password = document.getElementById('inputSbPassword').value.trim();
       const nickname = document.getElementById('inputSbNick').value.trim();
+      const initialSb = parseInt(document.getElementById('inputSbInitial').value) || 0;
       const statusMsg = document.getElementById('loginStatusMsg');
       const spinner = document.getElementById('loginSpinner');
       const btnText = document.getElementById('loginBtnText');
@@ -1465,7 +1594,7 @@
         const res = await fetch('/api/accounts/login-credentials', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email, password, account_id: nickname || null })
+          body: JSON.stringify({ email, password, account_id: nickname || null, initial_sb: initialSb })
         });
         let data;
         try {

@@ -258,7 +258,7 @@ async def cancel_web_auth(account_id: str) -> None:
             pass
 
 
-async def login_with_credentials(account_id: str, email: str, password: str) -> dict:
+async def login_with_credentials(account_id: str, email: str, password: str, initial_sb: Optional[int] = None) -> dict:
     """
     Automate logging into Swagbucks using provided email and password.
     Credentials are used only for this login action and NEVER stored to disk or DB.
@@ -272,13 +272,14 @@ async def login_with_credentials(account_id: str, email: str, password: str) -> 
     # In Vercel serverless cloud environment, Chromium browser instances cannot be spawned.
     # Register the account in SQLite database and return immediate success.
     if os.environ.get("VERCEL"):
+        sb_val = int(initial_sb) if initial_sb is not None else 0
         register_account(account_id, nickname=email, status="ACTIVE", email=email, password=password)
         record_balance(
             account_id=account_id,
-            sb_balance=0,
-            prev_balance=0,
+            sb_balance=sb_val,
+            prev_balance=sb_val,
             balance_change=0,
-            session_status="LOGGED_IN",
+            session_status="Logged In",
             error_message=None,
         )
         return {
@@ -286,6 +287,7 @@ async def login_with_credentials(account_id: str, email: str, password: str) -> 
             "status": "logged_in",
             "message": f"Successfully registered and connected Swagbucks account for {email}!",
             "account_id": account_id,
+            "current_sb": sb_val,
         }
 
     p = await async_playwright().start()

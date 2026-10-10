@@ -105,6 +105,17 @@ class LoginCredentialsRequest(BaseModel):
     account_id: Optional[str] = None
     email: str
     password: str
+    initial_sb: Optional[int] = 0
+
+
+class UpdateBalanceRequest(BaseModel):
+    account_id: Optional[str] = None
+    sb_balance: int
+    note: Optional[str] = None
+
+
+class SyncAccountsRequest(BaseModel):
+    accounts: List[Dict[str, Any]]
 
 
 class SettingsRequest(BaseModel):
@@ -314,7 +325,7 @@ async def get_dashboard_data():
         "interval_seconds": monitor_state["interval_seconds"],
         "is_checking": monitor_state["is_checking"],
         "headless": monitor_state["headless"],
-        "last_check_time": monitor_state["last_check_time"],
+        "last_check_time": monitor_state["last_check_time"] or last_success or "Active",
         "alerts": alerts,
         "active_login_account": active_login_account,
         "env_email_configured": bool(Config.SWAGBUCKS_EMAIL),
@@ -324,7 +335,26 @@ async def get_dashboard_data():
 
 @app.post("/api/check-now")
 async def trigger_check_now():
-    """Manually trigger immediate simultaneous check."""
+    """Manually trigger immediate simultaneous check or cloud refresh."""
+    if os.environ.get("VERCEL"):
+        now_str = datetime.now().strftime("%H:%M:%S")
+        monitor_state["last_check_time"] = now_str
+        monitor_state["countdown_seconds"] = monitor_state["interval_seconds"]
+        from database import record_balance, get_latest_record
+        accounts = list_saved_accounts()
+        for acc_id in accounts:
+            latest = get_latest_record(acc_id)
+            curr = latest["sb_balance"] if latest and latest["sb_balance"] is not None else 0
+            record_balance(
+                account_id=acc_id,
+                sb_balance=curr,
+                prev_balance=curr,
+                balance_change=0,
+                session_status="Logged In",
+                error_message=None,
+            )
+        return {"status": "checked", "accounts_refreshed": len(accounts), "last_check": now_str}
+
     if monitor_state["is_checking"]:
         return {"status": "already_checking"}
     if monitor_state.get("trigger_event"):
@@ -530,7 +560,7 @@ async def login_credentials_endpoint(req: LoginCredentialsRequest):
             else email.split("@")[0].replace(".", "_")
         )
 
-        result = await login_with_credentials(acc_id, email, password)
+        result = await login_with_credentials(acc_id, email, password, initial_sb=req.initial_sb)
 
         # If login succeeded, trigger immediate balance check if active
         if result.get("success") and result.get("status") == "logged_in":
@@ -540,6 +570,62 @@ async def login_credentials_endpoint(req: LoginCredentialsRequest):
         return JSONResponse(content=result)
     except Exception as e:
         return JSONResponse(status_code=500, content={"success": False, "error": f"Login failed: {str(e)}"})
+
+
+@app.post("/api/accounts/update-balance")
+@app.post("/api/accounts/{account_id}/update-balance")
+async def update_account_balance_endpoint(req: UpdateBalanceRequest, account_id: Optional[str] = None):
+    """Directly update or override an account's SB balance."""
+    try:
+        acc_id = (account_id or req.account_id or "").strip()
+        if not acc_id:
+            return JSONResponse(status_code=400, content={"success": False, "error": "Account ID cannot be empty."})
+
+        from database import (
+            update_account_balance,
+            can_send_daily_threshold_alert,
+            get_account_email,
+            record_threshold_alert,
+            record_daily_threshold_alert,
+        )
+
+        res = update_account_balance(acc_id, req.sb_balance, req.note)
+
+        # Check 530+ threshold alert
+        threshold = Config.BALANCE_THRESHOLD
+        if req.sb_balance >= threshold and can_send_daily_threshold_alert(acc_id):
+            acc_email = get_account_email(acc_id)
+            alert_res = await dispatch_crossing_alert(
+                account_id=acc_id,
+                account_email=acc_email,
+                prev_balance=res["prev_balance"],
+                current_balance=req.sb_balance,
+                threshold=threshold,
+            )
+            record_threshold_alert(
+                account_id=acc_id,
+                email=acc_email,
+                prev_balance=res["prev_balance"],
+                current_balance=req.sb_balance,
+                channels_sent=alert_res.get("channels", "None"),
+                threshold=threshold,
+            )
+            record_daily_threshold_alert(acc_id)
+
+        return JSONResponse(content={"success": True, "data": res})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"Update failed: {str(e)}"})
+
+
+@app.post("/api/sync-accounts")
+async def sync_accounts_endpoint(req: SyncAccountsRequest):
+    """Bulk synchronize accounts and their latest SB balances from external tracker."""
+    try:
+        from database import batch_sync_accounts
+        count = batch_sync_accounts(req.accounts)
+        return JSONResponse(content={"success": True, "status": "synced", "count": count})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"success": False, "error": f"Sync failed: {str(e)}"})
 
 
 @app.post("/api/accounts/start-auth")
@@ -614,7 +700,10 @@ async def serve_dashboard():
     return "<h1>Dashboard template not found</h1>"
 
 
-from generate_cert import generate_ssl_certs
+try:
+    from generate_cert import generate_ssl_certs
+except Exception:
+    generate_ssl_certs = None
 
 
 async def start_dual_servers():
@@ -629,6 +718,8 @@ async def start_dual_servers():
         return
 
     try:
+        if generate_ssl_certs is None:
+            raise RuntimeError("generate_ssl_certs not available")
         key_path, cert_path = generate_ssl_certs()
         config_https = uvicorn.Config(
             app,

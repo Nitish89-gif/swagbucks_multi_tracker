@@ -47,6 +47,8 @@ logging.basicConfig(
 )
 
 PYTHON_EXE = str(BASE_DIR / ".venv" / "Scripts" / "python.exe")
+if not os.path.exists(PYTHON_EXE):
+    PYTHON_EXE = sys.executable
 CLOUDFLARED_EXE = str(BASE_DIR / "cloudflared.exe")
 WEB_APP_SCRIPT = str(BASE_DIR / "web_app.py")
 NTFY_TOPIC = "sb_alerts_9676061877"
