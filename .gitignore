@@ -2,8 +2,11 @@
 browser_sessions/
 
 # SQLite Database and local data
-data/
-*.db
+data/*
+!data/sessions/
+!data/sessions/*.json
+!data/sb_history_seed.db
+!data/proxies.txt
 *.sqlite3
 
 # Environment variables & secrets

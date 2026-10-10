@@ -371,12 +371,18 @@ async def monitor_accounts_sequentially(
 
             print(f"[*] [{idx+1}/{total}] Checking account '{acc_id}' via Batch {batch_num} [{pos_in_batch}/{batch_size}] IP: {ip_display}...")
 
+            use_pw_proxy = None
+            if proxy_dict:
+                srv = proxy_dict.get("server", "")
+                if proxy_manager.test_proxy(srv, timeout=2):
+                    use_pw_proxy = proxy_dict
+
             try:
                 res = await check_single_account(
                     p,
                     acc_id,
                     headless=headless,
-                    proxy=proxy_dict,
+                    proxy=use_pw_proxy,
                     ip_display=ip_display,
                 )
                 processed_results.append(res)

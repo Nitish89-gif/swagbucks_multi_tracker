@@ -4,10 +4,8 @@ __pycache__
 __pycache__/
 *.py[cod]
 browser_sessions
-data
-data/
+data/sb_history.db
 cloudflared.exe
-*.db
 *.sqlite3
 .git
 .git/

@@ -1,0 +1,54 @@
+name: 24h Cloud Balance Checker (Independent of Laptop)
+
+on:
+  schedule:
+    # Runs automatically every 24 hours at 18:30 UTC = 00:00 IST (12:00 AM Midnight)
+    - cron: '30 18 * * *'
+  workflow_dispatch: # Allows 1-click manual trigger anytime from GitHub UI
+
+permissions:
+  contents: write
+
+jobs:
+  check-balances:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install Dependencies & Playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          playwright install --with-deps chromium
+
+      - name: Run Cloud Balance Checker
+        env:
+          HEADLESS: "true"
+          USE_PROXY_ROTATION: "true"
+          BATCH_ACCOUNTS_PER_IP: "3"
+          MOBILE_ALERTS_ENABLED: "true"
+          MOBILE_PUSH_TOPIC: "sb_alerts_9676061877"
+          BALANCE_THRESHOLD: "530"
+          CLOUD_MIN_GAP: "10"
+          CLOUD_MAX_GAP: "20"
+        run: |
+          python cloud_checker.py
+
+      - name: Commit & Push Updated Balances to GitHub & Vercel
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/sb_history.db data/sb_history_seed.db data/sessions/*.json
+          git commit -m "Auto-update Swagbucks balances from 24h cloud runner [skip ci]" || echo "No changes to commit"
+          git push origin main || echo "Nothing to push"

@@ -1,0 +1,105 @@
+{
+  "cookies": [
+    {
+      "name": "_GRECAPTCHA",
+      "value": "09AKhCRwgoN8MLhwqiwJ1czkDLjkLPmSmjC2zH4v7GoD_CM5hm6WOVS74LxEFYtiki6AgURrmdVNnADjSWXt7cDfU",
+      "domain": "www.google.com",
+      "path": "/recaptcha",
+      "expires": 1806948573.518213,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "EXP_c5642c96f9_identity",
+      "value": "JTIyJTdCJTVDJTIyd2ViX2V4cF9pZF92MiU1QyUyMiUzQSU1QyUyMjk0MWJkYzJmLTkwZTgtNGEwNS1iMTA3LWMxYjEwOWJhZjIxMSU1QyUyMiUyQyU1QyUyMmZpcnN0X3NlZW4lNUMlMjIlM0ElNUMlMjIxNzkxMzk2NTY1LjU3NSU1QyUyMiU3RCUyMg==",
+      "domain": ".swagbucks.com",
+      "path": "/",
+      "expires": 1822932565,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "g_state",
+      "value": "{\"i_l\":0,\"i_ll\":1791396569002,\"i_b\":\"XUNFd71Qwz3UvwP4MqPbn1AR/Q32ixn9ulap3t07xVg\",\"i_e\":{\"enable_itp_optimization\":24},\"i_et\":1791396569002}",
+      "domain": "www.swagbucks.com",
+      "path": "/",
+      "expires": 1806948569,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__urqm",
+      "value": "238018872~7b577c281500ff48f0167a649c762185~NJL5G762E89r",
+      "domain": ".swagbucks.com",
+      "path": "/",
+      "expires": 1825956574.104571,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__urqi",
+      "value": "9afed19b5cd1b1cfd09234cf35367074ad5cc92c2fc89226b36eea23acb52cc843d57056f9ae8e6d15642ce191e8736d5def35664aca7c65263764070cf454cc",
+      "domain": ".swagbucks.com",
+      "path": "/",
+      "expires": 1825956574.104635,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "__urqc",
+      "value": "3c922122-1c8f-4d30-8c74-ed5bf19e30a3",
+      "domain": ".swagbucks.com",
+      "path": "/",
+      "expires": 1822932580.944895,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "NID",
+      "value": "CuQBCAESlgEBOxGDSF46PiyweDP3YR5HJDzcqLbEWqS3BAZx2oMUVoej-B-8VByFSOjkO-7ba1SM3q_PA1izPZ8rW4I_PGiFh-GFTLXicCkj7I4QXhR5glaBNzrizNs6iCYGoAvZW0Wzdg2Hlofybbg8cOvpn1w4YrMR8lmNoOsxDQzw9QCK3hnrVtqUfwVr3-xy308xQB8ZRWghU7QoATJFAdKsB88hamXV8Rd5nocHxw_Ra6JpWZQQVYzi5qVJKUD89H5coKzzQa2KGUZIVn5W3FSg_QYN5gTu4x-Ixn9ioSfeTN8C",
+      "domain": ".google.com",
+      "path": "/",
+      "expires": 1807207774.67713,
+      "httpOnly": true,
+      "secure": true,
+      "sameSite": "None"
+    },
+    {
+      "name": "proson",
+      "value": "RcELwGrKXOk",
+      "domain": ".swagbucks.com",
+      "path": "/",
+      "expires": 1826206954.988265,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "AWSALB",
+      "value": "aZuyA9z81/Lg+Cfi9LR9hEGFxg5nUpukGocEsuc8R7C52QYkGUDokeYMI1OLPbksZqTKdtkfK5pGVVpfytlYWT3lgn56XniGmKkP/+jpVVLVuAM6ckBs6Xi0o8R8",
+      "domain": "www.swagbucks.com",
+      "path": "/",
+      "expires": 1792251756.498464,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "AWSALBCORS",
+      "value": "aZuyA9z81/Lg+Cfi9LR9hEGFxg5nUpukGocEsuc8R7C52QYkGUDokeYMI1OLPbksZqTKdtkfK5pGVVpfytlYWT3lgn56XniGmKkP/+jpVVLVuAM6ckBs6Xi0o8R8",
+      "domain": "www.swagbucks.com",
+      "path": "/",
+      "expires": 1792251756.498525,
+      "httpOnly": false,
+      "secure": true,
+      "sameSite": "None"
+    }
+  ],
+  "origins": []
+}
