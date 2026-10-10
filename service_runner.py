@@ -92,7 +92,8 @@ def is_already_running():
                 text=True,
                 creationflags=CREATE_NO_WINDOW
             )
-            if str(pid) in res.stdout:
+            out = res.stdout.lower()
+            if str(pid) in out and ("python" in out):
                 return True
         except Exception:
             pass
