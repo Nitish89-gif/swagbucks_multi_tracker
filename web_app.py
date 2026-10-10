@@ -6,10 +6,10 @@ Built with FastAPI, Playwright Async, and SQLite.
 
 import asyncio
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 # Ensure project root is in sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -47,6 +47,7 @@ from database import (
     init_db,
 )
 from monitor import monitor_accounts_simultaneously
+from proxy_manager import proxy_manager
 from notifications import (
     dispatch_crossing_alert,
     get_email_status,
@@ -84,11 +85,42 @@ async def get_apple_touch_icon():
         return FileResponse(str(icon_file), media_type="image/png")
     raise HTTPException(status_code=404, detail="Icon not found")
 
+def get_seconds_to_next_midnight(target_time_str: str = "00:00") -> Tuple[int, str]:
+    """Calculate seconds and target timestamp until midnight / target daily check time."""
+    now = datetime.now()
+    try:
+        parts = target_time_str.split(":")
+        target_h, target_m = int(parts[0]), int(parts[1])
+    except Exception:
+        target_h, target_m = 0, 0
+
+    target_today = now.replace(hour=target_h, minute=target_m, second=0, microsecond=0)
+    if now >= target_today:
+        target_next = target_today + timedelta(days=1)
+    else:
+        target_next = target_today
+
+    diff_sec = max(0, int((target_next - now).total_seconds()))
+    return diff_sec, target_next.strftime("%Y-%m-%d %H:%M:%S")
+
+
+init_diff, init_target_str = get_seconds_to_next_midnight(getattr(Config, "TARGET_CHECK_TIME", "00:00"))
+
 # Global monitoring state
 monitor_state: Dict[str, Any] = {
     "interval_seconds": Config.CHECK_INTERVAL_SECONDS,
-    "countdown_seconds": Config.CHECK_INTERVAL_SECONDS,
+    "countdown_seconds": init_diff,
+    "target_time": getattr(Config, "TARGET_CHECK_TIME", "00:00"),
+    "next_scheduled_check": init_target_str,
     "is_checking": False,
+    "checking_state": "idle",
+    "current_checking_account": None,
+    "checking_index": 0,
+    "checking_total": 0,
+    "checking_ip": None,
+    "gap_remaining": 0,
+    "gap_total": 0,
+    "next_account_id": None,
     "headless": Config.HEADLESS,
     "last_check_time": None,
     "task": None,
@@ -119,8 +151,12 @@ class SyncAccountsRequest(BaseModel):
 
 
 class SettingsRequest(BaseModel):
-    interval_seconds: int
-    headless: bool
+    interval_seconds: Optional[int] = 86400
+    target_time: Optional[str] = "00:00"
+    headless: Optional[bool] = True
+    use_proxy_rotation: Optional[bool] = True
+    gap_min_seconds: Optional[int] = 120
+    gap_max_seconds: Optional[int] = 180
 
 
 class EmailSettingsRequest(BaseModel):
@@ -145,32 +181,56 @@ class MobileSettingsRequest(BaseModel):
 
 
 async def background_monitoring_worker():
-    """Background asynchronous task that manages concurrent polling and countdown."""
+    """Background asynchronous task that manages 24h / midnight polling with anti-bot gaps and IP rotation."""
     while True:
         try:
-            # 1. Fetch all accounts
+            # 1. Countdown until midnight (or interval) or until manual trigger
+            while monitor_state["countdown_seconds"] > 0:
+                await asyncio.sleep(1)
+                monitor_state["countdown_seconds"] = max(0, monitor_state["countdown_seconds"] - 1)
+                if monitor_state.get("trigger_event") and monitor_state["trigger_event"].is_set():
+                    monitor_state["trigger_event"].clear()
+                    break
+
+            # 2. Fetch all accounts with staggered anti-bot gap and IP rotation
             accounts = list_saved_accounts()
             if accounts:
                 monitor_state["is_checking"] = True
+                monitor_state["checking_state"] = "checking"
+
+                async def progress_hook(p_data: Dict[str, Any]):
+                    monitor_state["checking_state"] = p_data.get("state", "checking")
+                    monitor_state["current_checking_account"] = p_data.get("account_id")
+                    monitor_state["checking_index"] = p_data.get("index", 0)
+                    monitor_state["checking_total"] = p_data.get("total", len(accounts))
+                    monitor_state["checking_ip"] = p_data.get("ip_used")
+                    monitor_state["gap_remaining"] = p_data.get("gap_remaining", 0)
+                    monitor_state["gap_total"] = p_data.get("gap_total", 0)
+                    monitor_state["next_account_id"] = p_data.get("next_account_id")
+
                 try:
                     await monitor_accounts_simultaneously(
-                        accounts, headless=monitor_state["headless"]
+                        accounts,
+                        headless=monitor_state["headless"],
+                        progress_callback=progress_hook,
                     )
-                    monitor_state["last_check_time"] = datetime.now().strftime("%H:%M:%S")
+                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    monitor_state["last_check_time"] = now_str
                 except Exception as e:
                     print(f"[!] Error in background check: {e}")
                 finally:
                     monitor_state["is_checking"] = False
+                    monitor_state["checking_state"] = "idle"
+                    monitor_state["gap_remaining"] = 0
+                    monitor_state["current_checking_account"] = None
 
-            # 2. Countdown loop
-            monitor_state["countdown_seconds"] = monitor_state["interval_seconds"]
-            for _ in range(monitor_state["interval_seconds"]):
-                await asyncio.sleep(1)
-                monitor_state["countdown_seconds"] = max(0, monitor_state["countdown_seconds"] - 1)
-                # Check if manual check was triggered
-                if monitor_state["trigger_event"].is_set():
-                    monitor_state["trigger_event"].clear()
-                    break
+            # 3. Schedule next 24h midnight run
+            target_t = monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00")
+            next_diff, next_target_str = get_seconds_to_next_midnight(target_t)
+            if next_diff < 10:
+                next_diff, next_target_str = get_seconds_to_next_midnight(target_t)
+            monitor_state["countdown_seconds"] = next_diff
+            monitor_state["next_scheduled_check"] = next_target_str
 
         except asyncio.CancelledError:
             break
@@ -279,6 +339,8 @@ async def get_dashboard_data():
             "current_sb": current_sb,
             "latest_change": latest_change,
             "today_change": today_change,
+            "day_start_sb": stats.get("day_start_sb", current_sb),
+            "ip_used": stats.get("ip_used") or (latest.get("ip_used") if latest else None),
             "highest_balance": stats["highest_balance"],
             "lowest_balance": stats["lowest_balance"],
             "successful_checks": stats["successful_checks"],
@@ -323,9 +385,21 @@ async def get_dashboard_data():
         "last_successful_check": last_success,
         "countdown_seconds": monitor_state["countdown_seconds"],
         "interval_seconds": monitor_state["interval_seconds"],
+        "target_check_time": monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00"),
+        "next_scheduled_check": monitor_state.get("next_scheduled_check"),
         "is_checking": monitor_state["is_checking"],
+        "checking_state": monitor_state.get("checking_state", "idle"),
+        "current_checking_account": monitor_state.get("current_checking_account"),
+        "checking_index": monitor_state.get("checking_index", 0),
+        "checking_total": monitor_state.get("checking_total", 0),
+        "checking_ip": monitor_state.get("checking_ip"),
+        "gap_remaining": monitor_state.get("gap_remaining", 0),
+        "gap_total": monitor_state.get("gap_total", 0),
+        "next_account_id": monitor_state.get("next_account_id"),
+        "proxy_rotation_enabled": getattr(Config, "USE_PROXY_ROTATION", True),
+        "proxy_status": proxy_manager.get_status(),
         "headless": monitor_state["headless"],
-        "last_check_time": monitor_state["last_check_time"] or last_success or "Active",
+        "last_check_time": monitor_state["last_check_time"] or last_success or "Never",
         "alerts": alerts,
         "active_login_account": active_login_account,
         "env_email_configured": bool(Config.SWAGBUCKS_EMAIL),
@@ -335,9 +409,9 @@ async def get_dashboard_data():
 
 @app.post("/api/check-now")
 async def trigger_check_now():
-    """Manually trigger immediate simultaneous check or cloud refresh."""
+    """Manually trigger immediate check with anti-bot staggering and IP rotation."""
     if os.environ.get("VERCEL"):
-        now_str = datetime.now().strftime("%H:%M:%S")
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         monitor_state["last_check_time"] = now_str
         monitor_state["countdown_seconds"] = monitor_state["interval_seconds"]
         from database import record_balance, get_latest_record
@@ -358,6 +432,7 @@ async def trigger_check_now():
     if monitor_state["is_checking"]:
         return {"status": "already_checking"}
     if monitor_state.get("trigger_event"):
+        monitor_state["countdown_seconds"] = 0
         monitor_state["trigger_event"].set()
     return {"status": "triggered"}
 
@@ -679,15 +754,83 @@ async def get_history_endpoint(account_id: str):
     return {"account_id": account_id, "data": history}
 
 
+class SaveProxiesRequest(BaseModel):
+    proxies: List[str]
+
+
+class TestProxyRequest(BaseModel):
+    proxy: str
+
+
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest):
-    """Update check interval and headless mode."""
-    monitor_state["interval_seconds"] = max(10, req.interval_seconds)
-    monitor_state["headless"] = req.headless
+    """Update 24h check interval, target time, anti-bot gaps, and proxy rotation."""
+    if req.interval_seconds is not None:
+        monitor_state["interval_seconds"] = max(10, req.interval_seconds)
+        Config.CHECK_INTERVAL_SECONDS = monitor_state["interval_seconds"]
+    if req.target_time is not None:
+        monitor_state["target_time"] = req.target_time.strip()
+        Config.TARGET_CHECK_TIME = monitor_state["target_time"]
+        diff, next_str = get_seconds_to_next_midnight(monitor_state["target_time"])
+        monitor_state["countdown_seconds"] = diff
+        monitor_state["next_scheduled_check"] = next_str
+    if req.headless is not None:
+        monitor_state["headless"] = req.headless
+        Config.HEADLESS = req.headless
+    if req.use_proxy_rotation is not None:
+        Config.USE_PROXY_ROTATION = req.use_proxy_rotation
+    if req.gap_min_seconds is not None:
+        Config.ACCOUNT_FETCH_GAP_MIN_SECONDS = max(1, req.gap_min_seconds)
+    if req.gap_max_seconds is not None:
+        Config.ACCOUNT_FETCH_GAP_MAX_SECONDS = max(Config.ACCOUNT_FETCH_GAP_MIN_SECONDS, req.gap_max_seconds)
+
+    # Persist updates to .env securely
+    Config.save_to_env({
+        "CHECK_INTERVAL_SECONDS": str(Config.CHECK_INTERVAL_SECONDS),
+        "TARGET_CHECK_TIME": Config.TARGET_CHECK_TIME,
+        "USE_PROXY_ROTATION": "true" if Config.USE_PROXY_ROTATION else "false",
+        "ACCOUNT_FETCH_GAP_MIN_SECONDS": str(Config.ACCOUNT_FETCH_GAP_MIN_SECONDS),
+        "ACCOUNT_FETCH_GAP_MAX_SECONDS": str(Config.ACCOUNT_FETCH_GAP_MAX_SECONDS),
+        "HEADLESS": "true" if Config.HEADLESS else "false",
+    })
+
     return {
         "status": "updated",
         "interval_seconds": monitor_state["interval_seconds"],
+        "target_time": monitor_state.get("target_time"),
+        "next_scheduled_check": monitor_state.get("next_scheduled_check"),
         "headless": monitor_state["headless"],
+        "use_proxy_rotation": Config.USE_PROXY_ROTATION,
+        "gap_min_seconds": Config.ACCOUNT_FETCH_GAP_MIN_SECONDS,
+        "gap_max_seconds": Config.ACCOUNT_FETCH_GAP_MAX_SECONDS,
+    }
+
+
+@app.get("/api/proxies")
+async def get_proxies_endpoint():
+    """Retrieve active proxy rotation status and list."""
+    return proxy_manager.get_status()
+
+
+@app.post("/api/proxies")
+async def save_proxies_endpoint(req: SaveProxiesRequest):
+    """Save user-supplied proxy list for rotation across accounts."""
+    proxy_manager.save_proxies(req.proxies)
+    return {
+        "status": "saved",
+        "total_proxies": len(proxy_manager.proxies),
+        "proxies": proxy_manager.proxies,
+    }
+
+
+@app.post("/api/proxies/test")
+async def test_proxy_endpoint(req: TestProxyRequest):
+    """Test connectivity for a single proxy."""
+    working = await asyncio.to_thread(proxy_manager.test_proxy, req.proxy.strip())
+    return {
+        "proxy": req.proxy,
+        "working": working,
+        "status": "connected" if working else "failed",
     }
 
 

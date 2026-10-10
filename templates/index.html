@@ -726,9 +726,50 @@
 
       <!-- KPI 5: LAST CHECKED TIME -->
       <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.4);">
-        <div class="kpi-title" style="color: #fbbf24;">🕒 LAST CHECKED</div>
-        <div class="kpi-value" id="kpiLastChecked" style="font-size: 16px; color: #fde68a;">--</div>
-        <div class="kpi-sub" id="kpiLastCheckedSub">Auto checking every 60s</div>
+        <div class="kpi-title" style="color: #fbbf24;">🕒 LAST CHECKED TIME</div>
+        <div class="kpi-value" id="kpiLastChecked" style="font-size: 14px; color: #fde68a; font-family: 'JetBrains Mono', monospace; word-break: break-all;">--</div>
+        <div class="kpi-sub" id="kpiLastCheckedSub">Every 24h &bull; Midnight 00:00</div>
+      </div>
+    </div>
+
+    <!-- 24-HOUR SCHEDULE & ANTI-BOT PROTECTION BANNER -->
+    <div id="scheduleBanner" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="font-size: 26px; line-height: 1;">⏱️</div>
+        <div>
+          <div style="font-size: 14px; font-weight: 700; color: #93c5fd;">
+            24-Hour Check Schedule: <span id="bannerTargetTime" style="color: #fbbf24;">12:00 AM Midnight (00:00)</span>
+          </div>
+          <div style="font-size: 12px; color: #94a3b8; margin-top: 3px;">
+            Next Scheduled Check: <strong id="bannerNextCheckTime" style="color: #f1f5f9;">--</strong> &bull;
+            Countdown: <strong id="bannerCountdown" style="color: #38bdf8; font-family: 'JetBrains Mono', monospace;">--</strong>
+          </div>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div class="status-pill" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 11px;">
+          🛡️ 2-3 Min Staggered Gap
+        </div>
+        <div class="status-pill" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #c084fc; font-size: 11px;">
+          🌐 Rotating IP Active
+        </div>
+      </div>
+    </div>
+
+    <!-- LIVE FETCHING & ANTI-BOT GAP PROGRESS (Visible during check cycle) -->
+    <div id="liveProgressCard" style="display: none; background: linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(16, 185, 129, 0.18) 100%); border: 1px solid rgba(59, 130, 246, 0.5); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <div class="spinner" style="border-top-color: #38bdf8;"></div>
+          <strong id="liveProgressTitle" style="font-size: 14px; color: #e2e8f0;">Fetching Balance...</strong>
+        </div>
+        <span id="liveProgressIndex" class="status-pill" style="font-size: 11px;">Account 0/0</span>
+      </div>
+      <div style="font-size: 12px; color: #cbd5e1; margin-bottom: 8px;" id="liveProgressDetail">
+        Checking account using rotating IP...
+      </div>
+      <div style="width: 100%; background: rgba(255, 255, 255, 0.1); height: 6px; border-radius: 999px; overflow: hidden;">
+        <div id="liveProgressBar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #38bdf8, #10b981); transition: width 0.3s ease;"></div>
       </div>
     </div>
 
@@ -954,20 +995,61 @@
 
   <!-- Settings Modal -->
   <div class="modal-overlay" id="settingsModal">
-    <div class="modal">
+    <div class="modal" style="max-width: 520px;">
       <div class="modal-header">
-        <div class="modal-title">Tracker Settings</div>
+        <div class="modal-title">⚙️ Tracker & Schedule Settings</div>
         <button class="close-btn" onclick="closeSettingsModal()">&times;</button>
       </div>
+
+      <div style="margin-bottom: 14px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #93c5fd;">
+        ⏱️ <strong>24-Hour Automated Schedule:</strong> Tracker runs once every 24 hours targeted at midnight (12:00 AM) to record opening day balances for every account.
+      </div>
+
       <div class="form-group">
         <label class="form-label">Check Interval (seconds)</label>
-        <input type="number" class="form-input" id="settingInterval" min="15" max="3600" value="60">
-        <div class="form-hint">Default: 60s</div>
+        <input type="number" class="form-input" id="settingInterval" min="60" max="86400" value="86400">
+        <div class="form-hint">Default: 86,400s (24 Hours)</div>
       </div>
-      <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 14px;">
-        <input type="checkbox" id="settingHeadless" checked style="width: 20px; height: 20px;">
-        <label for="settingHeadless" class="form-label" style="margin-bottom: 0;">Headless (Hidden Browser)</label>
+
+      <div class="form-group">
+        <label class="form-label">Daily Check Target Time (Start of Day)</label>
+        <input type="time" class="form-input" id="settingTargetTime" value="00:00">
+        <div class="form-hint">Default: 00:00 (12:00 AM Midnight)</div>
       </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+        <div class="form-group">
+          <label class="form-label">Anti-Bot Min Gap (sec)</label>
+          <input type="number" class="form-input" id="settingGapMin" min="10" max="600" value="120">
+          <div class="form-hint">Default: 120s (2 min)</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Anti-Bot Max Gap (sec)</label>
+          <input type="number" class="form-input" id="settingGapMax" min="20" max="600" value="180">
+          <div class="form-hint">Default: 180s (3 min)</div>
+        </div>
+      </div>
+
+      <!-- Proxy & IP Rotation Section -->
+      <div style="border-top: 1px solid var(--card-border); padding-top: 14px; margin-top: 10px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <label class="form-label" style="margin-bottom: 0;">🌐 Different IP Addresses / Proxy Rotation</label>
+          <input type="checkbox" id="settingProxyRotation" checked style="width: 18px; height: 18px;">
+        </div>
+        <div class="form-hint" style="margin-bottom: 8px;">
+          Current Machine IP: <strong id="lblCurrentDirectIp" style="color: #38bdf8;">--</strong>
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size: 11px;">Custom Proxies (one per line, e.g. <code>http://user:pass@ip:port</code>)</label>
+          <textarea class="form-input" id="settingProxyList" rows="3" placeholder="http://ip1:port&#10;http://user:pass@ip2:port&#10;socks5://ip3:port" style="font-family: 'JetBrains Mono', monospace; font-size: 11px;"></textarea>
+        </div>
+      </div>
+
+      <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+        <input type="checkbox" id="settingHeadless" checked style="width: 18px; height: 18px;">
+        <label for="settingHeadless" class="form-label" style="margin-bottom: 0;">Headless (Silent Background Chrome)</label>
+      </div>
+
       <div class="modal-actions">
         <button class="btn" onclick="closeSettingsModal()">Cancel</button>
         <button class="btn btn-primary" onclick="saveSettings()">Save Changes</button>
@@ -1220,7 +1302,51 @@
       if (kpiLastCheckEl) kpiLastCheckEl.innerText = lastCheckTime;
       if (headerLastCheckEl) headerLastCheckEl.innerText = lastCheckTime;
       if (lblMobileLastCheckEl) lblMobileLastCheckEl.innerText = lastCheckTime;
-      if (kpiLastCheckSubEl) kpiLastCheckSubEl.innerText = `Auto checking every ${data.interval_seconds || 60}s`;
+      if (kpiLastCheckSubEl) kpiLastCheckSubEl.innerText = `Checked once every 24h • Midnight 00:00`;
+
+      // 6. 24-HOUR COUNTDOWN & BANNER
+      function formatSeconds(sec) {
+        if (!sec || sec <= 0) return '00:00:00';
+        const h = Math.floor(sec / 3600);
+        const m = Math.floor((sec % 3600) / 60);
+        const s = sec % 60;
+        return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+      }
+      const bannerCountdown = document.getElementById('bannerCountdown');
+      const bannerTarget = document.getElementById('bannerTargetTime');
+      const bannerNextCheck = document.getElementById('bannerNextCheckTime');
+      if (bannerCountdown) bannerCountdown.innerText = formatSeconds(data.countdown_seconds);
+      if (bannerTarget) bannerTarget.innerText = `${data.target_check_time || '00:00'} (12:00 AM Midnight)`;
+      if (bannerNextCheck) bannerNextCheck.innerText = data.next_scheduled_check || 'Tonight at 00:00:00';
+
+      // 7. LIVE ANTI-BOT PROGRESS & 2-3 MIN GAP STATUS
+      const liveProgressCard = document.getElementById('liveProgressCard');
+      if (liveProgressCard) {
+        if (data.is_checking) {
+          liveProgressCard.style.display = 'block';
+          const titleEl = document.getElementById('liveProgressTitle');
+          const indexEl = document.getElementById('liveProgressIndex');
+          const detailEl = document.getElementById('liveProgressDetail');
+          const barEl = document.getElementById('liveProgressBar');
+
+          const curIdx = data.checking_index || 1;
+          const totAcc = data.checking_total || (data.accounts ? data.accounts.length : 1);
+          if (indexEl) indexEl.innerText = `Account ${curIdx}/${totAcc}`;
+
+          const pct = totAcc > 0 ? Math.round((curIdx / totAcc) * 100) : 50;
+          if (barEl) barEl.style.width = `${pct}%`;
+
+          if (data.checking_state === 'gap') {
+            if (titleEl) titleEl.innerText = `⏳ Anti-Bot Delay: Waiting ${data.gap_remaining || 0}s...`;
+            if (detailEl) detailEl.innerHTML = `🛡️ <strong>2-3 min delay between accounts active:</strong> Finished <em>${data.current_checking_account}</em>. Pausing before checking <em>${data.next_account_id || 'next account'}</em> to look organic and avoid rate limits.`;
+          } else {
+            if (titleEl) titleEl.innerText = `🔄 Fetching: ${data.current_checking_account || 'Checking account'}...`;
+            if (detailEl) detailEl.innerHTML = `🌐 Using Rotating IP: <strong style="color: #38bdf8;">${data.checking_ip || 'Proxy/Direct IP'}</strong> &bull; Querying live balance safely without direct concurrency`;
+          }
+        } else {
+          liveProgressCard.style.display = 'none';
+        }
+      }
 
       // Update Mobile Links & Topic
       if (data.mobile_push_url) {
@@ -1293,8 +1419,11 @@
                 ${acc.latest_change > 0 ? '+' + acc.latest_change : (acc.latest_change || 0)} SB
               </div>
             </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05);">
-              <span class="tc-meta" style="color: #fde68a; font-weight: 600;">🕒 Last Checked: ${acc.last_check_time || '--'}</span>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05); flex-wrap: wrap; gap: 6px;">
+              <div style="font-size: 11px; color: #94a3b8;">
+                🕒 <strong>Checked:</strong> <span style="color: #fde68a;">${acc.last_check_time || '--'}</span> &bull; 
+                🌐 <strong>IP:</strong> <span style="color: #c084fc;">${acc.ip_used || 'Direct IP'}</span>
+              </div>
               <div style="display: flex; gap: 6px;">
                 <button class="btn btn-sm btn-primary" style="padding: 3px 8px; font-size: 11px;" onclick="openUpdateBalanceModal('${acc.account_id}', '${acc.email || acc.account_id}', ${acc.current_sb || 0})">✏️ Update SB</button>
                 <button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="viewHistory('${acc.account_id}')">📊 History</button>
@@ -1326,6 +1455,10 @@
         const changeColor = acc.latest_change > 0 ? '#34d399' : acc.latest_change < 0 ? '#f87171' : 'var(--text-dim)';
         const changeStr = acc.latest_change > 0 ? `+${acc.latest_change}` : `${acc.latest_change || 0}`;
 
+        const dayStartVal = acc.day_start_sb !== null && acc.day_start_sb !== undefined ? acc.day_start_sb.toLocaleString() : '--';
+        const todayGain = acc.today_change !== undefined ? (acc.today_change > 0 ? `+${acc.today_change}` : `${acc.today_change}`) : '0';
+        const todayGainColor = acc.today_change > 0 ? '#34d399' : acc.today_change < 0 ? '#f87171' : 'var(--text-dim)';
+
         return `
           <div class="account-item-card" style="${isAbove ? 'border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.03);' : ''}">
             <div class="aic-top">
@@ -1335,8 +1468,9 @@
                     🔗 ${acc.email || acc.account_id}
                   </button>
                 </div>
-                <div class="aic-meta" style="margin-top: 4px; font-size: 12px;">
-                  🕒 <strong>Last Checked:</strong> <span style="color: #fde68a; font-weight: 700;">${acc.last_check_time || 'Never'}</span> &bull; ID: ${acc.account_id}
+                <div class="aic-meta" style="margin-top: 4px; font-size: 12px; line-height: 1.5;">
+                  🕒 <strong>Last Checked:</strong> <span style="color: #fde68a; font-weight: 700;">${acc.last_check_time || 'Never'}</span><br>
+                  🌐 <strong>IP Used:</strong> <span style="color: #c084fc; font-weight: 600;">${acc.ip_used || 'Direct IP'}</span> &bull; ID: ${acc.account_id}
                 </div>
               </div>
               <div class="aic-badges-row">
@@ -1344,16 +1478,23 @@
                 <span class="${sessionClass}">${sessionText}</span>
               </div>
             </div>
-            <div class="aic-middle">
+
+            <!-- 3-Column Balance Info: 12 AM Start, Current Balance, Today's Net Change -->
+            <div class="aic-middle" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; background: rgba(255, 255, 255, 0.02); padding: 8px 10px; border-radius: 8px; margin: 10px 0;">
               <div>
-                <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Current Balance</div>
-                <div class="aic-balance">${acc.current_sb !== null && acc.current_sb !== undefined ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 13px; color: var(--text-muted);">SB</span></div>
+                <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 600;">🌅 12 AM Start</div>
+                <div style="font-size: 15px; font-weight: 700; color: #60a5fa;">${dayStartVal} <span style="font-size: 11px;">SB</span></div>
+              </div>
+              <div>
+                <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Current SB</div>
+                <div class="aic-balance" style="font-size: 16px;">${acc.current_sb !== null && acc.current_sb !== undefined ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 11px; color: var(--text-muted);">SB</span></div>
               </div>
               <div style="text-align: right;">
-                <div style="font-size: 11px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Change</div>
-                <div class="aic-change" style="color: ${changeColor};">Δ ${changeStr} SB</div>
+                <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Today's Gain</div>
+                <div class="aic-change" style="color: ${todayGainColor}; font-size: 14px; font-weight: 700;">Δ ${todayGain} SB</div>
               </div>
             </div>
+
             <div class="aic-bottom">
               <span class="aic-meta">Threshold: 530 SB &bull; Alert: ${isAbove ? 'Triggered / Monitored' : 'Monitoring'}</span>
               <div class="aic-actions">
@@ -1631,20 +1772,61 @@
     }
 
     // Tracker Settings
-    function openSettingsModal() {
+    async function openSettingsModal() {
       document.getElementById('settingsModal').classList.add('active');
+      try {
+        const res = await fetch('/api/dashboard');
+        const data = await res.json();
+        if (data.interval_seconds) document.getElementById('settingInterval').value = data.interval_seconds;
+        if (data.target_check_time) document.getElementById('settingTargetTime').value = data.target_check_time;
+        if (data.headless !== undefined) document.getElementById('settingHeadless').checked = data.headless;
+        if (data.proxy_rotation_enabled !== undefined) document.getElementById('settingProxyRotation').checked = data.proxy_rotation_enabled;
+
+        const proxyRes = await fetch('/api/proxies');
+        const proxyData = await proxyRes.json();
+        const lblIp = document.getElementById('lblCurrentDirectIp');
+        if (lblIp && proxyData.current_direct_ip) lblIp.innerText = proxyData.current_direct_ip;
+        if (proxyData.proxies) {
+          document.getElementById('settingProxyList').value = proxyData.proxies.join('\n');
+        }
+      } catch (e) {
+        console.error('Error fetching settings:', e);
+      }
     }
     function closeSettingsModal() {
       document.getElementById('settingsModal').classList.remove('active');
     }
     async function saveSettings() {
-      const interval = parseInt(document.getElementById('settingInterval').value) || 60;
+      const interval = parseInt(document.getElementById('settingInterval').value) || 86400;
+      const targetTime = document.getElementById('settingTargetTime').value.trim() || '00:00';
+      const gapMin = parseInt(document.getElementById('settingGapMin').value) || 120;
+      const gapMax = parseInt(document.getElementById('settingGapMax').value) || 180;
+      const proxyRotation = document.getElementById('settingProxyRotation').checked;
       const headless = document.getElementById('settingHeadless').checked;
+      const proxyListRaw = document.getElementById('settingProxyList').value;
+      const proxyList = proxyListRaw.split('\n').map(p => p.trim()).filter(p => p && !p.startsWith('#'));
+
       await fetch('/api/settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ interval_seconds: interval, headless: headless })
+        body: JSON.stringify({
+          interval_seconds: interval,
+          target_time: targetTime,
+          gap_min_seconds: gapMin,
+          gap_max_seconds: gapMax,
+          use_proxy_rotation: proxyRotation,
+          headless: headless
+        })
       });
+
+      if (proxyList.length > 0) {
+        await fetch('/api/proxies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ proxies: proxyList })
+        });
+      }
+
       closeSettingsModal();
       fetchDashboard();
     }

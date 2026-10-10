@@ -230,6 +230,26 @@ def init_db() -> None:
         except sqlite3.OperationalError:
             pass
 
+        try:
+            cursor.execute("ALTER TABLE sb_history ADD COLUMN ip_used TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN last_fetch_ip TEXT")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN day_start_sb INTEGER")
+        except sqlite3.OperationalError:
+            pass
+
+        try:
+            cursor.execute("ALTER TABLE accounts ADD COLUMN day_start_date TEXT")
+        except sqlite3.OperationalError:
+            pass
+
         # Ensure default seed accounts exist if database is empty
         cursor.execute("SELECT COUNT(*) FROM accounts")
         count_row = cursor.fetchone()
@@ -341,33 +361,61 @@ def record_balance(
     balance_change: int,
     session_status: str,
     error_message: Optional[str] = None,
+    ip_used: Optional[str] = None,
 ) -> int:
     """
-    Record a new monitoring check result into SQLite.
+    Record a new monitoring check result into SQLite with full timestamp and IP address.
+    Also tracks the exact starting balance of the day for date comparison.
     Returns the newly inserted row ID.
     """
+    now_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    today_date = datetime.now().strftime("%Y-%m-%d")
     with get_connection() as conn:
         cursor = conn.execute(
             """
             INSERT INTO sb_history (
                 account_id, 
+                timestamp,
                 sb_balance, 
                 prev_balance, 
                 balance_change, 
                 session_status, 
-                error_message
+                error_message,
+                ip_used
             )
-            VALUES (?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 account_id,
+                now_ts,
                 sb_balance,
                 prev_balance,
                 balance_change,
                 session_status,
                 error_message,
+                ip_used,
             ),
         )
+        try:
+            conn.execute(
+                """
+                UPDATE accounts 
+                SET last_updated = ?,
+                    last_fetch_ip = COALESCE(?, last_fetch_ip),
+                    day_start_sb = CASE 
+                        WHEN day_start_date IS NULL OR day_start_date != ? THEN COALESCE(?, day_start_sb)
+                        ELSE day_start_sb 
+                    END,
+                    day_start_date = CASE 
+                        WHEN day_start_date IS NULL OR day_start_date != ? THEN ?
+                        ELSE day_start_date 
+                    END
+                WHERE account_id = ?
+                """,
+                (now_ts, ip_used, today_date, sb_balance, today_date, today_date, account_id)
+            )
+        except Exception:
+            pass
         conn.commit()
         return cursor.lastrowid
 
@@ -505,13 +553,49 @@ def get_account_stats(account_id: str) -> Dict[str, Any]:
             else (acc_info["nickname"] if acc_info and acc_info["nickname"] and "@" in acc_info["nickname"] else account_id)
         )
 
+        # Calculate exact day starting balance (recorded at start of day / ~12:00 midnight)
+        start_of_day_row = conn.execute(
+            """
+            SELECT sb_balance FROM sb_history
+            WHERE account_id = ? AND DATE(timestamp, 'localtime') = DATE('now', 'localtime')
+            ORDER BY timestamp ASC, id ASC
+            LIMIT 1
+            """,
+            (account_id,)
+        ).fetchone()
+        if not start_of_day_row:
+            start_of_day_row = conn.execute(
+                """
+                SELECT sb_balance FROM sb_history
+                WHERE account_id = ? AND DATE(timestamp, 'localtime') < DATE('now', 'localtime')
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 1
+                """,
+                (account_id,)
+            ).fetchone()
+
+        curr_sb = latest["sb_balance"] if latest and latest["sb_balance"] is not None else 0
+        day_start_val = (
+            start_of_day_row["sb_balance"]
+            if start_of_day_row and start_of_day_row["sb_balance"] is not None
+            else (acc_info["day_start_sb"] if (acc_info and "day_start_sb" in acc_info.keys() and acc_info["day_start_sb"] is not None) else curr_sb)
+        )
+
+        ip_val = None
+        if latest and "ip_used" in latest.keys() and latest["ip_used"]:
+            ip_val = latest["ip_used"]
+        elif acc_info and "last_fetch_ip" in acc_info.keys() and acc_info["last_fetch_ip"]:
+            ip_val = acc_info["last_fetch_ip"]
+
         return {
             "account_id": account_id,
             "email": email_val,
             "nickname": acc_info["nickname"] if acc_info else account_id,
-            "current_sb": latest["sb_balance"] if latest and latest["sb_balance"] is not None else 0,
+            "current_sb": curr_sb,
             "previous_sb": latest["prev_balance"] if latest and latest["prev_balance"] is not None else 0,
             "latest_change": latest["balance_change"] if latest and latest["balance_change"] is not None else 0,
+            "day_start_sb": day_start_val,
+            "ip_used": ip_val,
             "status": latest["session_status"] if latest else "Not Checked",
             "last_check_time": latest["timestamp"] if latest else None,
             "highest_balance": min_max["highest_balance"] if min_max and min_max["highest_balance"] is not None else 0,

@@ -4,9 +4,10 @@ Uses Playwright async API and asyncio to query multiple accounts concurrently.
 """
 
 import asyncio
+import random
 import re
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from playwright.async_api import BrowserContext, Page, async_playwright
 
@@ -25,6 +26,7 @@ from database import (
     set_threshold_alert_state,
 )
 from notifications import dispatch_crossing_alert
+from proxy_manager import proxy_manager
 
 
 class SessionExpiredException(Exception):
@@ -134,33 +136,42 @@ async def extract_sb_balance(page: Page) -> int:
 
 
 async def check_single_account(
-    p_instance: Any, account_id: str, headless: bool = True, timeout_ms: int = 40000
+    p_instance: Any,
+    account_id: str,
+    headless: bool = True,
+    timeout_ms: int = 40000,
+    proxy: Optional[Dict[str, str]] = None,
+    ip_display: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Check the balance for a single account in its isolated persistent context.
-    Safely captures errors and records results in SQLite.
+    Supports proxy/IP rotation and records results in SQLite with full date & time.
     """
     session_dir = get_session_dir(account_id)
     last_record = get_latest_record(account_id)
     prev_balance = last_record["sb_balance"] if last_record and last_record["sb_balance"] is not None else 0
 
-    now_str = datetime.now().strftime("%H:%M:%S")
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     context: Optional[BrowserContext] = None
     try:
-        # Launch isolated persistent browser context
-        context = await p_instance.chromium.launch_persistent_context(
-            user_data_dir=str(session_dir),
-            headless=headless,
-            user_agent=DEFAULT_USER_AGENT,
-            viewport=DEFAULT_VIEWPORT,
-            args=[
+        launch_kwargs = {
+            "user_data_dir": str(session_dir),
+            "headless": headless,
+            "user_agent": DEFAULT_USER_AGENT,
+            "viewport": DEFAULT_VIEWPORT,
+            "args": [
                 "--disable-blink-features=AutomationControlled",
                 "--no-sandbox",
                 "--disable-dev-shm-usage",
             ],
-            ignore_https_errors=True,
-        )
+            "ignore_https_errors": True,
+        }
+        if proxy and Config.USE_PROXY_ROTATION:
+            launch_kwargs["proxy"] = proxy
+
+        # Launch isolated persistent browser context
+        context = await p_instance.chromium.launch_persistent_context(**launch_kwargs)
 
         pages = context.pages
         page = pages[0] if pages else await context.new_page()
@@ -180,7 +191,7 @@ async def check_single_account(
         # Calculate change
         change = current_sb - prev_balance if prev_balance is not None else 0
 
-        # Record to DB
+        # Record to DB with exact timestamp, ip_used, and day_start_sb
         record_balance(
             account_id=account_id,
             sb_balance=current_sb,
@@ -188,6 +199,7 @@ async def check_single_account(
             balance_change=change,
             session_status="Logged In",
             error_message=None,
+            ip_used=ip_display,
         )
         set_account_status(account_id, "ACTIVE")
 
@@ -224,10 +236,10 @@ async def check_single_account(
             "change": change,
             "last_check": now_str,
             "error_reason": None,
+            "ip_used": ip_display,
         }
 
     except SessionExpiredException as e:
-        # Perform silent background re-login if credentials are saved
         relogin_ok = False
         creds = get_account_credentials(account_id)
         if creds and creds.get("email") and creds.get("password"):
@@ -238,44 +250,6 @@ async def check_single_account(
             except Exception as login_err:
                 print(f"[!] Silent re-login attempt error: {login_err}")
 
-        if relogin_ok:
-            record_balance(
-                account_id=account_id,
-                sb_balance=prev_balance,
-                prev_balance=prev_balance,
-                balance_change=0,
-                session_status="Logged In",
-                error_message=None,
-            )
-            set_account_status(account_id, "ACTIVE")
-            return {
-                "account_id": account_id,
-                "status": "Logged In",
-                "current_sb": prev_balance,
-                "change": 0,
-                "last_check": now_str,
-                "error_reason": None,
-            }
-        else:
-            record_balance(
-                account_id=account_id,
-                sb_balance=prev_balance,
-                prev_balance=prev_balance,
-                balance_change=0,
-                session_status="Logged In",
-                error_message=None,
-            )
-            set_account_status(account_id, "ACTIVE")
-            return {
-                "account_id": account_id,
-                "status": "Logged In",
-                "current_sb": prev_balance,
-                "change": 0,
-                "last_check": now_str,
-                "error_reason": None,
-            }
-
-    except CloudflareBlockedException as e:
         record_balance(
             account_id=account_id,
             sb_balance=prev_balance,
@@ -283,6 +257,7 @@ async def check_single_account(
             balance_change=0,
             session_status="Logged In",
             error_message=None,
+            ip_used=ip_display,
         )
         set_account_status(account_id, "ACTIVE")
         return {
@@ -292,6 +267,28 @@ async def check_single_account(
             "change": 0,
             "last_check": now_str,
             "error_reason": None,
+            "ip_used": ip_display,
+        }
+
+    except CloudflareBlockedException as e:
+        record_balance(
+            account_id=account_id,
+            sb_balance=prev_balance,
+            prev_balance=prev_balance,
+            balance_change=0,
+            session_status="Logged In",
+            error_message="Cloudflare challenge",
+            ip_used=ip_display,
+        )
+        set_account_status(account_id, "ACTIVE")
+        return {
+            "account_id": account_id,
+            "status": "Logged In",
+            "current_sb": prev_balance,
+            "change": 0,
+            "last_check": now_str,
+            "error_reason": None,
+            "ip_used": ip_display,
         }
 
     except Exception as e:
@@ -301,7 +298,8 @@ async def check_single_account(
             prev_balance=prev_balance,
             balance_change=0,
             session_status="Logged In",
-            error_message=None,
+            error_message=str(e),
+            ip_used=ip_display,
         )
         set_account_status(account_id, "ACTIVE")
         return {
@@ -311,6 +309,7 @@ async def check_single_account(
             "change": 0,
             "last_check": now_str,
             "error_reason": None,
+            "ip_used": ip_display,
         }
 
     finally:
@@ -321,41 +320,120 @@ async def check_single_account(
                 pass
 
 
-async def monitor_accounts_simultaneously(
-    account_ids: List[str], headless: bool = True
+async def monitor_accounts_sequentially(
+    account_ids: List[str],
+    headless: bool = True,
+    progress_callback: Optional[Callable[[Dict[str, Any]], Any]] = None,
+    min_gap_seconds: Optional[int] = None,
+    max_gap_seconds: Optional[int] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Monitor all provided accounts simultaneously using asyncio.gather.
-    Does NOT block account 2 while account 1 is running.
+    Monitor accounts sequentially with:
+    1. Different / rotating IP addresses per account (via proxy_manager).
+    2. Random 2-3 minute time gap between accounts to prevent anti-bot detection.
+    3. Live progress reporting for dashboard UI.
     """
     if not account_ids:
         return []
 
-    sem = asyncio.Semaphore(Config.MAX_CONCURRENT_CHECKS)
+    min_gap = min_gap_seconds if min_gap_seconds is not None else Config.ACCOUNT_FETCH_GAP_MIN_SECONDS
+    max_gap = max_gap_seconds if max_gap_seconds is not None else Config.ACCOUNT_FETCH_GAP_MAX_SECONDS
 
-    async def _sem_check(acc_id: str):
-        async with sem:
-            return await check_single_account(p, acc_id, headless=headless)
+    processed_results = []
+    total = len(account_ids)
 
     async with async_playwright() as p:
-        tasks = [_sem_check(account_id) for account_id in account_ids]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        processed_results = []
-        for i, res in enumerate(results):
-            if isinstance(res, Exception):
-                acc_id = account_ids[i]
-                processed_results.append(
-                    {
-                        "account_id": acc_id,
-                        "status": "Logged In",
-                        "current_sb": 0,
-                        "change": 0,
-                        "last_check": datetime.now().strftime("%H:%M:%S"),
-                        "error_reason": None,
-                    }
-                )
+        for idx, acc_id in enumerate(account_ids):
+            # 1. Determine proxy and display IP for this account
+            proxy_dict = None
+            ip_display = None
+            if Config.USE_PROXY_ROTATION:
+                proxy_dict = proxy_manager.get_proxy_for_account(acc_id, idx, total)
+                if proxy_dict:
+                    ip_display = proxy_dict.get("server", "").replace("http://", "").replace("https://", "").replace("socks5://", "")
+                else:
+                    ip_display = proxy_manager.get_current_public_ip()
             else:
-                processed_results.append(res)
+                ip_display = proxy_manager.get_current_public_ip()
 
-        return processed_results
+            if progress_callback:
+                try:
+                    cb_res = progress_callback({
+                        "state": "checking",
+                        "account_id": acc_id,
+                        "index": idx + 1,
+                        "total": total,
+                        "ip_used": ip_display,
+                    })
+                    if asyncio.iscoroutine(cb_res):
+                        await cb_res
+                except Exception:
+                    pass
+
+            print(f"[*] [{idx+1}/{total}] Checking account '{acc_id}' via IP: {ip_display}...")
+
+            try:
+                res = await check_single_account(
+                    p,
+                    acc_id,
+                    headless=headless,
+                    proxy=proxy_dict,
+                    ip_display=ip_display,
+                )
+                processed_results.append(res)
+            except Exception as e:
+                print(f"[!] Error checking {acc_id}: {e}")
+                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                processed_results.append({
+                    "account_id": acc_id,
+                    "status": "Logged In",
+                    "current_sb": 0,
+                    "change": 0,
+                    "last_check": now_str,
+                    "error_reason": str(e),
+                    "ip_used": ip_display,
+                })
+
+            # 2. Random 2-3 minute time gap before checking the next account
+            if idx < total - 1:
+                gap = random.randint(min_gap, max_gap)
+                gap_min = gap // 60
+                gap_sec = gap % 60
+                next_acc = account_ids[idx + 1]
+                print(f"[*] [Gap Protection] Sleeping {gap}s ({gap_min}m {gap_sec}s) before checking next account '{next_acc}'...")
+
+                for remaining in range(gap, 0, -1):
+                    if progress_callback:
+                        try:
+                            cb_res = progress_callback({
+                                "state": "gap",
+                                "account_id": acc_id,
+                                "next_account_id": next_acc,
+                                "index": idx + 1,
+                                "total": total,
+                                "gap_remaining": remaining,
+                                "gap_total": gap,
+                            })
+                            if asyncio.iscoroutine(cb_res):
+                                await cb_res
+                        except Exception:
+                            pass
+                    await asyncio.sleep(1)
+
+        if progress_callback:
+            try:
+                cb_res = progress_callback({
+                    "state": "completed",
+                    "total": total,
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                })
+                if asyncio.iscoroutine(cb_res):
+                    await cb_res
+            except Exception:
+                pass
+
+    return processed_results
+
+
+# Maintain alias for compatibility
+monitor_accounts_simultaneously = monitor_accounts_sequentially

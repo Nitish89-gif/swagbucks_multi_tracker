@@ -166,12 +166,15 @@ def start_backend():
 def start_tunnel():
     logging.info("Starting cloudflared tunnel...")
     tunnel_log = DATA_DIR / "cloudflared_service.log"
-    log_fp = open(tunnel_log, "w", encoding="utf-8")
+    if tunnel_log.exists():
+        try:
+            tunnel_log.unlink()
+        except Exception:
+            pass
+
     proc = subprocess.Popen(
-        [CLOUDFLARED_EXE, "tunnel", "--url", "http://localhost:8080"],
+        [CLOUDFLARED_EXE, "tunnel", "--url", "http://localhost:8080", "--logfile", str(tunnel_log)],
         cwd=str(BASE_DIR),
-        stdout=log_fp,
-        stderr=subprocess.STDOUT,
         creationflags=CREATE_NO_WINDOW
     )
     
