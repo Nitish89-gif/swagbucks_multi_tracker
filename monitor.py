@@ -344,17 +344,13 @@ async def monitor_accounts_sequentially(
 
     async with async_playwright() as p:
         for idx, acc_id in enumerate(account_ids):
-            # 1. Determine proxy and display IP for this account
-            proxy_dict = None
-            ip_display = None
-            if Config.USE_PROXY_ROTATION:
-                proxy_dict = proxy_manager.get_proxy_for_account(acc_id, idx, total)
-                if proxy_dict:
-                    ip_display = proxy_dict.get("server", "").replace("http://", "").replace("https://", "").replace("socks5://", "")
-                else:
-                    ip_display = proxy_manager.get_current_public_ip()
-            else:
-                ip_display = proxy_manager.get_current_public_ip()
+            # 1. Determine batch proxy and display IP for this account (3 accounts per IP)
+            batch_size = getattr(Config, "BATCH_ACCOUNTS_PER_IP", 3)
+            b_info = proxy_manager.get_batch_info_for_account(acc_id, idx, total, batch_size=batch_size)
+            proxy_dict = b_info["proxy_dict"] if Config.USE_PROXY_ROTATION else None
+            ip_display = b_info["display"] if Config.USE_PROXY_ROTATION else proxy_manager.get_current_public_ip()
+            batch_num = b_info["batch_num"]
+            pos_in_batch = b_info["pos_in_batch"]
 
             if progress_callback:
                 try:
@@ -364,13 +360,16 @@ async def monitor_accounts_sequentially(
                         "index": idx + 1,
                         "total": total,
                         "ip_used": ip_display,
+                        "batch_num": batch_num,
+                        "pos_in_batch": pos_in_batch,
+                        "batch_size": batch_size,
                     })
                     if asyncio.iscoroutine(cb_res):
                         await cb_res
                 except Exception:
                     pass
 
-            print(f"[*] [{idx+1}/{total}] Checking account '{acc_id}' via IP: {ip_display}...")
+            print(f"[*] [{idx+1}/{total}] Checking account '{acc_id}' via Batch {batch_num} [{pos_in_batch}/{batch_size}] IP: {ip_display}...")
 
             try:
                 res = await check_single_account(

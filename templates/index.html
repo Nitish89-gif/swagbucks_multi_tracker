@@ -254,6 +254,62 @@
       text-overflow: ellipsis;
     }
 
+    /* Mobile-Optimized Compact KPI Cards (Fixes huge boxes on phones) */
+    @media (max-width: 640px) {
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+
+      .kpi-card {
+        padding: 9px 10px !important;
+        border-radius: 9px !important;
+        min-height: 58px;
+      }
+
+      .kpi-title {
+        font-size: 9px !important;
+        letter-spacing: 0.3px !important;
+        margin-bottom: 3px !important;
+        line-height: 1.15;
+      }
+
+      .kpi-value {
+        font-size: 16px !important;
+        font-weight: 800 !important;
+        line-height: 1.1;
+      }
+
+      .kpi-sub {
+        font-size: 9px !important;
+        margin-top: 2px !important;
+        line-height: 1.15;
+      }
+
+      /* Card 5 (Last Checked Time) stretches across 2 columns cleanly */
+      .kpi-card:nth-child(5) {
+        grid-column: span 2;
+        padding: 8px 12px !important;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .kpi-card:nth-child(5) .kpi-title {
+        margin-bottom: 0 !important;
+      }
+
+      .kpi-card:nth-child(5) .kpi-value {
+        font-size: 12px !important;
+      }
+
+      .kpi-card:nth-child(5) .kpi-sub {
+        margin-top: 0 !important;
+      }
+    }
+
     /* Featured Sections */
     .featured-section {
       background-color: var(--card-bg);

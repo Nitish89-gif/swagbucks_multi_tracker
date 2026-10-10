@@ -207,6 +207,9 @@ async def background_monitoring_worker():
                     monitor_state["gap_remaining"] = p_data.get("gap_remaining", 0)
                     monitor_state["gap_total"] = p_data.get("gap_total", 0)
                     monitor_state["next_account_id"] = p_data.get("next_account_id")
+                    monitor_state["batch_num"] = p_data.get("batch_num", 1)
+                    monitor_state["pos_in_batch"] = p_data.get("pos_in_batch", 1)
+                    monitor_state["batch_size"] = p_data.get("batch_size", 3)
 
                 try:
                     await monitor_accounts_simultaneously(
@@ -393,6 +396,9 @@ async def get_dashboard_data():
         "checking_index": monitor_state.get("checking_index", 0),
         "checking_total": monitor_state.get("checking_total", 0),
         "checking_ip": monitor_state.get("checking_ip"),
+        "batch_num": monitor_state.get("batch_num", 1),
+        "pos_in_batch": monitor_state.get("pos_in_batch", 1),
+        "batch_size": getattr(Config, "BATCH_ACCOUNTS_PER_IP", 3),
         "gap_remaining": monitor_state.get("gap_remaining", 0),
         "gap_total": monitor_state.get("gap_total", 0),
         "next_account_id": monitor_state.get("next_account_id"),

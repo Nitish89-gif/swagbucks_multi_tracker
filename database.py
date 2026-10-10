@@ -21,88 +21,100 @@ DB_PATH = DB_DIR / "sb_history.db"
 
 DEFAULT_SEED_ACCOUNTS = [
     {
-        "account_id": "pasumarthinitish",
-        "nickname": "pasumarthinitish@gmail.com",
-        "email": "pasumarthinitish@gmail.com",
-        "sb_balance": 189,
-        "timestamp": "2026-10-09 12:11:59",
-    },
-    {
-        "account_id": "nitishjaya2006",
-        "nickname": "nitishjaya2006@gmail.com",
-        "email": "nitishjaya2006@gmail.com",
-        "sb_balance": 278,
-        "timestamp": "2026-10-09 12:13:10",
-    },
-    {
-        "account_id": "nitishjaya2007",
-        "nickname": "nitishjaya2007@gmail.com",
-        "email": "nitishjaya2007@gmail.com",
-        "sb_balance": 215,
-        "timestamp": "2026-10-09 12:13:10",
-    },
-    {
-        "account_id": "nitishjaya2009",
-        "nickname": "nitishjaya2009@gmail.com",
-        "email": "nitishjaya2009@gmail.com",
-        "sb_balance": 66,
-        "timestamp": "2026-10-09 12:11:44",
-    },
-    {
-        "account_id": "nitishpasuma",
-        "nickname": "nitishpasuma@yahoo.com",
-        "email": "nitishpasuma@yahoo.com",
-        "sb_balance": 35,
-        "timestamp": "2026-10-09 12:11:49",
-    },
-    {
         "account_id": "dndndbfnf571",
         "nickname": "dndndbfnf571@gmail.com",
         "email": "dndndbfnf571@gmail.com",
-        "sb_balance": 15,
-        "timestamp": "2026-10-09 12:13:05",
-    },
-    {
-        "account_id": "unit8creativestudio",
-        "nickname": "unit8creativestudio@yahoo.com",
-        "email": "unit8creativestudio@yahoo.com",
-        "sb_balance": 472,
-        "timestamp": "2026-10-09 12:11:59",
-    },
-    {
-        "account_id": "nitishjaya2011",
-        "nickname": "nitishjaya2011@outlook.com",
-        "email": "nitishjaya2011@outlook.com",
-        "sb_balance": 372,
-        "timestamp": "2026-10-09 12:11:49",
+        "sb_balance": 25,
+        "timestamp": "2026-10-10 21:12:00",
+        "ip": "Batch 1 (104.28.192.45)",
     },
     {
         "account_id": "nitishjaya2005",
         "nickname": "nitishjaya2005@gmail.com",
         "email": "nitishjaya2005@gmail.com",
-        "sb_balance": 51,
-        "timestamp": "2026-10-09 12:13:05",
+        "sb_balance": 61,
+        "timestamp": "2026-10-10 21:12:05",
+        "ip": "Batch 1 (104.28.192.45)",
     },
     {
-        "account_id": "npasumar2",
-        "nickname": "npasumar2@gitam.in",
-        "email": "npasumar2@gitam.in",
-        "sb_balance": 71,
-        "timestamp": "2026-10-09 12:11:54",
+        "account_id": "nitishjaya2006",
+        "nickname": "nitishjaya2006@gmail.com",
+        "email": "nitishjaya2006@gmail.com",
+        "sb_balance": 288,
+        "timestamp": "2026-10-10 21:12:10",
+        "ip": "Batch 1 (104.28.192.45)",
     },
     {
-        "account_id": "pasumanigish",
-        "nickname": "pasumanigish@gmail.com",
-        "email": "pasumanigish@gmail.com",
-        "sb_balance": 517,
-        "timestamp": "2026-10-09 12:11:54",
+        "account_id": "nitishjaya2007",
+        "nickname": "nitishjaya2007@gmail.com",
+        "email": "nitishjaya2007@gmail.com",
+        "sb_balance": 225,
+        "timestamp": "2026-10-10 21:12:15",
+        "ip": "Batch 2 (172.67.181.12)",
     },
     {
         "account_id": "nitishjaya2008",
         "nickname": "nitishjaya2008@gmail.com",
         "email": "nitishjaya2008@gmail.com",
-        "sb_balance": 50,
-        "timestamp": "2026-10-09 12:11:44",
+        "sb_balance": 60,
+        "timestamp": "2026-10-10 21:12:20",
+        "ip": "Batch 2 (172.67.181.12)",
+    },
+    {
+        "account_id": "nitishjaya2009",
+        "nickname": "nitishjaya2009@gmail.com",
+        "email": "nitishjaya2009@gmail.com",
+        "sb_balance": 76,
+        "timestamp": "2026-10-10 21:12:25",
+        "ip": "Batch 2 (172.67.181.12)",
+    },
+    {
+        "account_id": "nitishjaya2011",
+        "nickname": "nitishjaya2011@outlook.com",
+        "email": "nitishjaya2011@outlook.com",
+        "sb_balance": 382,
+        "timestamp": "2026-10-10 21:12:30",
+        "ip": "Batch 3 (198.41.214.162)",
+    },
+    {
+        "account_id": "nitishpasuma",
+        "nickname": "nitishpasuma@yahoo.com",
+        "email": "nitishpasuma@yahoo.com",
+        "sb_balance": 45,
+        "timestamp": "2026-10-10 21:12:35",
+        "ip": "Batch 3 (198.41.214.162)",
+    },
+    {
+        "account_id": "npasumar2",
+        "nickname": "npasumar2@gitam.in",
+        "email": "npasumar2@gitam.in",
+        "sb_balance": 81,
+        "timestamp": "2026-10-10 21:12:40",
+        "ip": "Batch 3 (198.41.214.162)",
+    },
+    {
+        "account_id": "pasumanigish",
+        "nickname": "pasumanigish@gmail.com",
+        "email": "pasumanigish@gmail.com",
+        "sb_balance": 527,
+        "timestamp": "2026-10-10 21:12:45",
+        "ip": "Batch 4 (162.159.138.85)",
+    },
+    {
+        "account_id": "pasumarthinitish",
+        "nickname": "pasumarthinitish@gmail.com",
+        "email": "pasumarthinitish@gmail.com",
+        "sb_balance": 199,
+        "timestamp": "2026-10-10 21:12:50",
+        "ip": "Batch 4 (162.159.138.85)",
+    },
+    {
+        "account_id": "unit8creativestudio",
+        "nickname": "unit8creativestudio@yahoo.com",
+        "email": "unit8creativestudio@yahoo.com",
+        "sb_balance": 482,
+        "timestamp": "2026-10-10 21:12:55",
+        "ip": "Batch 4 (162.159.138.85)",
     },
 ]
 
@@ -263,19 +275,20 @@ def init_db() -> None:
                 em = item["email"]
                 ts = item.get("timestamp") or "2026-10-09 12:13:10"
                 sb = item["sb_balance"]
+                item_ip = item.get("ip") or "Batch 1 (104.28.192.45)"
                 cursor.execute(
                     """
                     INSERT INTO accounts (account_id, nickname, status, email, password, last_updated, day_start_sb, day_start_date, last_fetch_ip)
-                    VALUES (?, ?, 'ACTIVE', ?, NULL, ?, ?, ?, '104.28.192.45')
+                    VALUES (?, ?, 'ACTIVE', ?, NULL, ?, ?, ?, ?)
                     """,
-                    (acc_id, nick, em, ts, sb, datetime.now().strftime("%Y-%m-%d")),
+                    (acc_id, nick, em, ts, sb, datetime.now().strftime("%Y-%m-%d"), item_ip),
                 )
                 cursor.execute(
                     """
                     INSERT INTO sb_history (account_id, timestamp, sb_balance, prev_balance, balance_change, session_status, error_message, ip_used)
-                    VALUES (?, ?, ?, ?, 0, 'Logged In', NULL, '104.28.192.45')
+                    VALUES (?, ?, ?, ?, 0, 'Logged In', NULL, ?)
                     """,
-                    (acc_id, ts, sb, sb),
+                    (acc_id, ts, sb, sb, item_ip),
                 )
 
         conn.commit()

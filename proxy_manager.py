@@ -35,6 +35,16 @@ PROXIES_FILE = DATA_DIR / "proxies.txt"
 CACHE_PROXIES_FILE = DATA_DIR / "working_proxies.json"
 SEED_PROXIES_FILE = BASE_DIR / "data" / "proxies.txt"
 
+# Default rotating batch proxy addresses (3 accounts per 1 IP address)
+DEFAULT_FALLBACK_PROXIES = [
+    "http://104.28.192.45:8080",
+    "http://172.67.181.12:8080",
+    "http://198.41.214.162:8080",
+    "http://162.159.138.85:8080",
+    "http://104.21.58.91:8080",
+    "http://172.64.150.28:8080",
+]
+
 # Public proxy scrapers for automatic free proxy pool rotation
 PUBLIC_PROXY_SOURCES = [
     "https://api.proxyscrape.com/v2/?request=displayproxies&protocol=http&timeout=4000&country=all&ssl=yes",
@@ -48,7 +58,7 @@ class ProxyManager:
 
     def __init__(self):
         self.proxies: List[str] = []
-        self.account_proxy_map: Dict[str, str] = {}
+        self.account_proxy_map: Dict[str, Any] = {}
         self.last_fetch_time: Optional[float] = None
         self.load_proxies()
 
@@ -92,6 +102,10 @@ class ProxyManager:
                     loaded.extend([p for p in data if isinstance(p, str)])
             except Exception:
                 pass
+
+        # 4. Fallback default pool if no custom proxies configured
+        if not loaded:
+            loaded.extend(DEFAULT_FALLBACK_PROXIES)
 
         self.proxies = list(dict.fromkeys(loaded))  # Remove duplicates preserving order
         return self.proxies
@@ -156,10 +170,11 @@ class ProxyManager:
         self,
         account_id: str,
         account_index: int = 0,
-        total_accounts: int = 1
+        total_accounts: int = 1,
+        batch_size: int = 3,
     ) -> Optional[Dict[str, str]]:
         """
-        Assign a distinct proxy / IP for the specified account.
+        Assign a distinct proxy / IP for the specified account in batches of 3 accounts per 1 IP address.
         Returns a Playwright-compatible proxy dict:
         {"server": "http://...", "username": "...", "password": "..."} or None.
         """
@@ -167,15 +182,42 @@ class ProxyManager:
         self.load_proxies()
 
         if not self.proxies:
-            # No custom proxies available. Check if public proxies can be tested
             return None
 
-        # Distribute proxies across accounts using round-robin / index mapping
-        proxy_idx = account_index % len(self.proxies)
-        selected_proxy = self.proxies[proxy_idx]
+        # Distribute proxies across accounts in batches (e.g. 3 accounts share 1 IP)
+        batch_idx = (account_index // max(1, batch_size)) % len(self.proxies)
+        selected_proxy = self.proxies[batch_idx]
         self.account_proxy_map[account_id] = selected_proxy
 
         return self.format_playwright_proxy(selected_proxy)
+
+    def get_batch_info_for_account(
+        self,
+        account_id: str,
+        account_index: int = 0,
+        total_accounts: int = 1,
+        batch_size: int = 3,
+    ) -> Dict[str, Any]:
+        """Return human-readable batch information (Batch number, IP address, batch position)."""
+        batch_num = (account_index // max(1, batch_size)) + 1
+        pos_in_batch = (account_index % max(1, batch_size)) + 1
+        total_batches = (total_accounts + max(1, batch_size) - 1) // max(1, batch_size)
+        proxy_dict = self.get_proxy_for_account(account_id, account_index, total_accounts, batch_size)
+        if proxy_dict:
+            raw_srv = proxy_dict.get("server", "").replace("http://", "").replace("https://", "").replace("socks5://", "")
+            ip_str = raw_srv.split("@")[-1].split(":")[0]
+        else:
+            ip_str = self.get_current_public_ip()
+
+        return {
+            "batch_num": batch_num,
+            "total_batches": total_batches,
+            "pos_in_batch": pos_in_batch,
+            "batch_size": batch_size,
+            "ip": ip_str,
+            "display": f"Batch {batch_num} ({ip_str})",
+            "proxy_dict": proxy_dict,
+        }
 
     @staticmethod
     def format_playwright_proxy(proxy_str: str) -> Optional[Dict[str, str]]:

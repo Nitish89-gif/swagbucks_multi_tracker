@@ -30,6 +30,7 @@ class Config:
     ACCOUNT_FETCH_GAP_MIN_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MIN_SECONDS", "120"))  # 2 minutes gap
     ACCOUNT_FETCH_GAP_MAX_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MAX_SECONDS", "180"))  # 3 minutes gap
     USE_PROXY_ROTATION: bool = os.getenv("USE_PROXY_ROTATION", "true").lower() in ("true", "1", "yes")
+    BATCH_ACCOUNTS_PER_IP: int = int(os.getenv("BATCH_ACCOUNTS_PER_IP", "3"))  # 3 accounts per 1 IP address
     PROXY_LIST: str = os.getenv("PROXY_LIST", "").strip()
     BALANCE_THRESHOLD: int = int(os.getenv("BALANCE_THRESHOLD", "530"))
     MAX_CONCURRENT_CHECKS: int = int(os.getenv("MAX_CONCURRENT_CHECKS", "1"))
