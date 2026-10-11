@@ -85,6 +85,33 @@ async def get_apple_touch_icon():
         return FileResponse(str(icon_file), media_type="image/png")
     raise HTTPException(status_code=404, detail="Icon not found")
 
+def get_seconds_to_next_run(interval_seconds: int = 18000, last_check_time_str: Optional[str] = None) -> Tuple[int, str]:
+    """Calculate seconds and target timestamp for next scheduled run based on interval (default 5 hours)."""
+    from datetime import timezone
+    if os.environ.get("VERCEL"):
+        ist_tz = timezone(timedelta(hours=5, minutes=30))
+        now = datetime.now(ist_tz).replace(tzinfo=None)
+    else:
+        now = datetime.now()
+
+    if last_check_time_str:
+        try:
+            last_clean = str(last_check_time_str).split(".")[0]
+            last_dt = datetime.strptime(last_clean, "%Y-%m-%d %H:%M:%S")
+            target_next = last_dt + timedelta(seconds=interval_seconds)
+            if target_next > now:
+                diff_sec = max(0, int((target_next - now).total_seconds()))
+                return diff_sec, target_next.strftime("%Y-%m-%d %H:%M:%S")
+            else:
+                return 0, now.strftime("%Y-%m-%d %H:%M:%S")
+        except Exception:
+            pass
+
+    target_next = now + timedelta(seconds=interval_seconds)
+    diff_sec = max(0, int((target_next - now).total_seconds()))
+    return diff_sec, target_next.strftime("%Y-%m-%d %H:%M:%S")
+
+
 def get_seconds_to_next_midnight(target_time_str: str = "00:00") -> Tuple[int, str]:
     """Calculate seconds and target timestamp until midnight / target daily check time in IST."""
     from datetime import timezone
@@ -111,13 +138,13 @@ def get_seconds_to_next_midnight(target_time_str: str = "00:00") -> Tuple[int, s
     return diff_sec, target_next.strftime("%Y-%m-%d %H:%M:%S")
 
 
-init_diff, init_target_str = get_seconds_to_next_midnight(getattr(Config, "TARGET_CHECK_TIME", "00:00"))
+init_diff, init_target_str = get_seconds_to_next_run(Config.CHECK_INTERVAL_SECONDS)
 
 # Global monitoring state
 monitor_state: Dict[str, Any] = {
     "interval_seconds": Config.CHECK_INTERVAL_SECONDS,
     "countdown_seconds": init_diff,
-    "target_time": getattr(Config, "TARGET_CHECK_TIME", "00:00"),
+    "target_time": "Every 5 Hours",
     "next_scheduled_check": init_target_str,
     "is_checking": False,
     "checking_state": "idle",
@@ -158,8 +185,8 @@ class SyncAccountsRequest(BaseModel):
 
 
 class SettingsRequest(BaseModel):
-    interval_seconds: Optional[int] = 86400
-    target_time: Optional[str] = "00:00"
+    interval_seconds: Optional[int] = 18000
+    target_time: Optional[str] = "Every 5 Hours"
     headless: Optional[bool] = True
     use_proxy_rotation: Optional[bool] = True
     gap_min_seconds: Optional[int] = 120
@@ -188,10 +215,10 @@ class MobileSettingsRequest(BaseModel):
 
 
 async def background_monitoring_worker():
-    """Background asynchronous task that manages 24h / midnight polling with anti-bot gaps and IP rotation."""
+    """Background asynchronous task that manages 5h polling with anti-bot gaps and IP rotation."""
     while True:
         try:
-            # 1. Countdown until midnight (or interval) or until manual trigger
+            # 1. Countdown until next check (interval) or until manual trigger
             while monitor_state["countdown_seconds"] > 0:
                 await asyncio.sleep(1)
                 monitor_state["countdown_seconds"] = max(0, monitor_state["countdown_seconds"] - 1)
@@ -234,11 +261,9 @@ async def background_monitoring_worker():
                     monitor_state["gap_remaining"] = 0
                     monitor_state["current_checking_account"] = None
 
-            # 3. Schedule next 24h midnight run
-            target_t = monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00")
-            next_diff, next_target_str = get_seconds_to_next_midnight(target_t)
-            if next_diff < 10:
-                next_diff, next_target_str = get_seconds_to_next_midnight(target_t)
+            # 3. Schedule next 5-hour run
+            curr_interval = monitor_state.get("interval_seconds") or getattr(Config, "CHECK_INTERVAL_SECONDS", 18000)
+            next_diff, next_target_str = get_seconds_to_next_run(curr_interval)
             monitor_state["countdown_seconds"] = next_diff
             monitor_state["next_scheduled_check"] = next_target_str
 
@@ -393,10 +418,10 @@ async def get_dashboard_data():
         "swagbucks_email": Config.SWAGBUCKS_EMAIL,
         "has_email_password": bool(Config.SMTP_PASSWORD),
         "last_successful_check": last_success,
-        "countdown_seconds": get_seconds_to_next_midnight(monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00"))[0],
-        "interval_seconds": monitor_state["interval_seconds"],
-        "target_check_time": monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00"),
-        "next_scheduled_check": get_seconds_to_next_midnight(monitor_state.get("target_time") or getattr(Config, "TARGET_CHECK_TIME", "00:00"))[1],
+        "countdown_seconds": monitor_state.get("countdown_seconds", 0),
+        "interval_seconds": monitor_state.get("interval_seconds", 18000),
+        "target_check_time": "Every 5 Hours",
+        "next_scheduled_check": monitor_state.get("next_scheduled_check", ""),
         "is_checking": monitor_state["is_checking"],
         "checking_state": monitor_state.get("checking_state", "idle"),
         "current_checking_account": monitor_state.get("current_checking_account"),
@@ -777,16 +802,16 @@ class TestProxyRequest(BaseModel):
 
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest):
-    """Update 24h check interval, target time, anti-bot gaps, and proxy rotation."""
+    """Update check interval, target time, anti-bot gaps, and proxy rotation."""
     if req.interval_seconds is not None:
         monitor_state["interval_seconds"] = max(10, req.interval_seconds)
         Config.CHECK_INTERVAL_SECONDS = monitor_state["interval_seconds"]
+        diff, next_str = get_seconds_to_next_run(monitor_state["interval_seconds"], monitor_state.get("last_check_time"))
+        monitor_state["countdown_seconds"] = diff
+        monitor_state["next_scheduled_check"] = next_str
     if req.target_time is not None:
         monitor_state["target_time"] = req.target_time.strip()
         Config.TARGET_CHECK_TIME = monitor_state["target_time"]
-        diff, next_str = get_seconds_to_next_midnight(monitor_state["target_time"])
-        monitor_state["countdown_seconds"] = diff
-        monitor_state["next_scheduled_check"] = next_str
     if req.headless is not None:
         monitor_state["headless"] = req.headless
         Config.HEADLESS = req.headless

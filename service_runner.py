@@ -148,9 +148,12 @@ def is_backend_healthy():
 
 def start_backend():
     logging.info("Starting web_app.py...")
+    log_fp = open(DATA_DIR / "web_app_service.log", "a", encoding="utf-8")
     proc = subprocess.Popen(
         [PYTHON_EXE, WEB_APP_SCRIPT],
         cwd=str(BASE_DIR),
+        stdout=log_fp,
+        stderr=subprocess.STDOUT,
         creationflags=CREATE_NO_WINDOW
     )
     # Wait for backend to be ready

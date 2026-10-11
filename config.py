@@ -24,8 +24,8 @@ class Config:
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8080"))
     HEADLESS: bool = os.getenv("HEADLESS", "true").lower() in ("true", "1", "yes")
-    CHECK_INTERVAL_SECONDS: int = int(os.getenv("CHECK_INTERVAL_SECONDS", "86400"))  # Default 24 hours (86400s)
-    SCHEDULE_DAILY_AT_MIDNIGHT: bool = os.getenv("SCHEDULE_DAILY_AT_MIDNIGHT", "true").lower() in ("true", "1", "yes")
+    CHECK_INTERVAL_SECONDS: int = int(os.getenv("CHECK_INTERVAL_SECONDS", "18000"))  # Default 5 hours (18000s)
+    SCHEDULE_DAILY_AT_MIDNIGHT: bool = os.getenv("SCHEDULE_DAILY_AT_MIDNIGHT", "false").lower() in ("true", "1", "yes")
     TARGET_CHECK_TIME: str = os.getenv("TARGET_CHECK_TIME", "00:00").strip()  # 00:00 (12:00 AM Midnight start of day)
     ACCOUNT_FETCH_GAP_MIN_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MIN_SECONDS", "120"))  # 2 minutes gap
     ACCOUNT_FETCH_GAP_MAX_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MAX_SECONDS", "180"))  # 3 minutes gap

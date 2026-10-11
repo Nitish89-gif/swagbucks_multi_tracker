@@ -784,18 +784,18 @@
       <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.4);">
         <div class="kpi-title" style="color: #fbbf24;">🕒 LAST CHECKED TIME</div>
         <div class="kpi-value" id="kpiLastChecked" style="font-size: 14px; color: #fde68a; font-family: 'JetBrains Mono', monospace; word-break: break-all;">--</div>
-        <div class="kpi-sub" id="kpiLastCheckedSub">Every 24h &bull; Midnight 00:00</div>
+        <div class="kpi-sub" id="kpiLastCheckedSub">Every 5h Cycle</div>
         <div style="font-size: 11px; color: #38bdf8; margin-top: 4px; font-weight: 600;">⏳ Next in: <span id="kpiCountdown" style="font-family: 'JetBrains Mono', monospace;">--</span></div>
       </div>
     </div>
 
-    <!-- 24-HOUR SCHEDULE & ANTI-BOT PROTECTION BANNER -->
+    <!-- 5-HOUR SCHEDULE & ANTI-BOT PROTECTION BANNER -->
     <div id="scheduleBanner" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
       <div style="display: flex; align-items: center; gap: 12px;">
         <div style="font-size: 26px; line-height: 1;">⏱️</div>
         <div>
           <div style="font-size: 14px; font-weight: 700; color: #93c5fd;">
-            24-Hour Check Schedule: <span id="bannerTargetTime" style="color: #fbbf24;">12:00 AM Midnight (00:00)</span>
+            5-Hour Check Schedule: <span id="bannerTargetTime" style="color: #fbbf24;">Every 5 Hours</span>
           </div>
           <div style="font-size: 12px; color: #94a3b8; margin-top: 3px;">
             Next Scheduled Check: <strong id="bannerNextCheckTime" style="color: #f1f5f9;">--</strong> &bull;
@@ -1059,19 +1059,19 @@
       </div>
 
       <div style="margin-bottom: 14px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #93c5fd;">
-        ⏱️ <strong>24-Hour Automated Schedule:</strong> Tracker runs once every 24 hours targeted at midnight (12:00 AM) to record opening day balances for every account.
+        ⏱️ <strong>5-Hour Automated Schedule:</strong> Tracker checks balances automatically every 5 hours (18,000s) to record fresh and accurate updates for every account.
       </div>
 
       <div class="form-group">
         <label class="form-label">Check Interval (seconds)</label>
-        <input type="number" class="form-input" id="settingInterval" min="60" max="86400" value="86400">
-        <div class="form-hint">Default: 86,400s (24 Hours)</div>
+        <input type="number" class="form-input" id="settingInterval" min="60" max="86400" value="18000">
+        <div class="form-hint">Default: 18,000s (5 Hours)</div>
       </div>
 
       <div class="form-group">
-        <label class="form-label">Daily Check Target Time (Start of Day)</label>
-        <input type="time" class="form-input" id="settingTargetTime" value="00:00">
-        <div class="form-hint">Default: 00:00 (12:00 AM Midnight)</div>
+        <label class="form-label">Check Cycle Target</label>
+        <input type="text" class="form-input" id="settingTargetTime" value="Every 5 Hours">
+        <div class="form-hint">Default: Every 5 Hours</div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
@@ -1376,16 +1376,17 @@
         return ts;
       }
 
-      function getExactNextScheduledCheckString() {
-        const now = new Date();
-        const nextMid = new Date(now);
-        nextMid.setHours(24, 0, 0, 0); // 12:00:00 AM midnight
-        const yyyy = nextMid.getFullYear();
-        const mm = String(nextMid.getMonth() + 1).padStart(2, '0');
-        const dd = String(nextMid.getDate()).padStart(2, '0');
-        const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-        const mName = monthNames[nextMid.getMonth()];
-        return `${yyyy}-${mm}-${dd} 00:00:00 (${mName} ${dd}, ${yyyy} at 12:00:00 AM Midnight IST)`;
+      function getExactNextScheduledCheckString(nextTs) {
+        if (nextTs) return formatExactTimestamp(nextTs);
+        const sec = (window._activeCountdownSec !== undefined && window._activeCountdownSec > 0) ? window._activeCountdownSec : 18000;
+        const targetDate = new Date(Date.now() + sec * 1000);
+        const yyyy = targetDate.getFullYear();
+        const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
+        const dd = String(targetDate.getDate()).padStart(2, '0');
+        const hh = String(targetDate.getHours()).padStart(2, '0');
+        const min = String(targetDate.getMinutes()).padStart(2, '0');
+        const ss = String(targetDate.getSeconds()).padStart(2, '0');
+        return formatExactTimestamp(`${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`);
       }
 
       const rawLastCheck = data.last_check_time || data.last_successful_check || '2026-10-10 21:12:55';
@@ -1398,9 +1399,9 @@
       if (kpiLastCheckEl) kpiLastCheckEl.innerText = rawLastCheck.includes('14:17:') ? '2026-10-10 21:12:55' : rawLastCheck;
       if (headerLastCheckEl) headerLastCheckEl.innerText = exactCheckTimeFormatted;
       if (lblMobileLastCheckEl) lblMobileLastCheckEl.innerText = exactCheckTimeFormatted;
-      if (kpiLastCheckSubEl) kpiLastCheckSubEl.innerText = `Verified at 09:12:55 PM IST • 24h Cycle`;
+      if (kpiLastCheckSubEl) kpiLastCheckSubEl.innerText = `Verified • 5h Cycle`;
 
-      // 6. 24-HOUR COUNTDOWN & BANNER
+      // 6. 5-HOUR COUNTDOWN & BANNER
       function formatSeconds(sec) {
         if (!sec || sec <= 0) return '00h 00m 00s';
         const h = Math.floor(sec / 3600);
@@ -1409,17 +1410,10 @@
         return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
       }
 
-      function getLocalSecondsToMidnight() {
-        const now = new Date();
-        const nextMidnight = new Date(now);
-        nextMidnight.setHours(24, 0, 0, 0); // 12:00 AM Midnight
-        return Math.max(0, Math.floor((nextMidnight.getTime() - now.getTime()) / 1000));
-      }
-
       function updateCountdownUI() {
         const sec = (window._activeCountdownSec !== undefined && window._activeCountdownSec > 0) 
           ? window._activeCountdownSec 
-          : getLocalSecondsToMidnight();
+          : 0;
         const formatted = formatSeconds(sec);
         const bannerCountdown = document.getElementById('bannerCountdown');
         const kpiCountdown = document.getElementById('kpiCountdown');
@@ -1429,30 +1423,30 @@
 
       // Initialize real-time 1-second ticker loop
       if (!window._countdownTimerInterval) {
-        window._activeCountdownSec = getLocalSecondsToMidnight();
+        window._activeCountdownSec = (data.countdown_seconds !== undefined) ? data.countdown_seconds : 18000;
         updateCountdownUI();
         window._countdownTimerInterval = setInterval(() => {
           if (window._activeCountdownSec > 0) {
             window._activeCountdownSec--;
-          } else {
-            window._activeCountdownSec = getLocalSecondsToMidnight();
           }
           updateCountdownUI();
         }, 1000);
       }
 
-      // Sync remaining seconds from server or local midnight
-      if (data.countdown_seconds && data.countdown_seconds > 0) {
+      // Sync remaining seconds from server
+      if (data.countdown_seconds !== undefined && data.countdown_seconds !== null) {
         window._activeCountdownSec = data.countdown_seconds;
-      } else {
-        window._activeCountdownSec = getLocalSecondsToMidnight();
       }
       updateCountdownUI();
 
       const bannerTarget = document.getElementById('bannerTargetTime');
       const bannerNextCheck = document.getElementById('bannerNextCheckTime');
-      if (bannerTarget) bannerTarget.innerText = `Every 24h at 12:00:00 AM Midnight (00:00:00 IST)`;
-      if (bannerNextCheck) bannerNextCheck.innerText = getExactNextScheduledCheckString();
+      if (bannerTarget) bannerTarget.innerText = `Every 5 Hours (${data.interval_seconds ? data.interval_seconds + 's' : '18,000s'} Cycle)`;
+      if (bannerNextCheck) {
+        bannerNextCheck.innerText = data.next_scheduled_check 
+          ? formatExactTimestamp(data.next_scheduled_check)
+          : getExactNextScheduledCheckString();
+      }
 
       // 7. LIVE ANTI-BOT PROGRESS & 2-3 MIN GAP STATUS
       const liveProgressCard = document.getElementById('liveProgressCard');
@@ -1932,8 +1926,8 @@
       document.getElementById('settingsModal').classList.remove('active');
     }
     async function saveSettings() {
-      const interval = parseInt(document.getElementById('settingInterval').value) || 86400;
-      const targetTime = document.getElementById('settingTargetTime').value.trim() || '00:00';
+      const interval = parseInt(document.getElementById('settingInterval').value) || 18000;
+      const targetTime = document.getElementById('settingTargetTime').value.trim() || 'Every 5 Hours';
       const gapMin = parseInt(document.getElementById('settingGapMin').value) || 120;
       const gapMax = parseInt(document.getElementById('settingGapMax').value) || 180;
       const proxyRotation = document.getElementById('settingProxyRotation').checked;
