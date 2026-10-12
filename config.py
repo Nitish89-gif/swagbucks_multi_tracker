@@ -24,12 +24,12 @@ class Config:
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8080"))
     HEADLESS: bool = os.getenv("HEADLESS", "true").lower() in ("true", "1", "yes")
-    CHECK_INTERVAL_SECONDS: int = int(os.getenv("CHECK_INTERVAL_SECONDS", "18000"))  # Default 5 hours (18000s)
+    CHECK_INTERVAL_SECONDS: int = int(os.getenv("CHECK_INTERVAL_SECONDS", "3600"))  # Default 1 hour (3600s / 60 minutes)
     SCHEDULE_DAILY_AT_MIDNIGHT: bool = os.getenv("SCHEDULE_DAILY_AT_MIDNIGHT", "false").lower() in ("true", "1", "yes")
-    TARGET_CHECK_TIME: str = os.getenv("TARGET_CHECK_TIME", "00:00").strip()  # 00:00 (12:00 AM Midnight start of day)
-    ACCOUNT_FETCH_GAP_MIN_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MIN_SECONDS", "120"))  # 2 minutes gap
-    ACCOUNT_FETCH_GAP_MAX_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MAX_SECONDS", "180"))  # 3 minutes gap
-    USE_PROXY_ROTATION: bool = os.getenv("USE_PROXY_ROTATION", "true").lower() in ("true", "1", "yes")
+    TARGET_CHECK_TIME: str = os.getenv("TARGET_CHECK_TIME", "Every 1 Hour").strip()  # Every 1 Hour (60 minutes)
+    ACCOUNT_FETCH_GAP_MIN_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MIN_SECONDS", "5"))   # 5 seconds minimum gap
+    ACCOUNT_FETCH_GAP_MAX_SECONDS: int = int(os.getenv("ACCOUNT_FETCH_GAP_MAX_SECONDS", "15"))  # 15 seconds maximum gap
+    USE_PROXY_ROTATION: bool = os.getenv("USE_PROXY_ROTATION", "false").lower() in ("true", "1", "yes")
     BATCH_ACCOUNTS_PER_IP: int = int(os.getenv("BATCH_ACCOUNTS_PER_IP", "3"))  # 3 accounts per 1 IP address
     PROXY_LIST: str = os.getenv("PROXY_LIST", "").strip()
     BALANCE_THRESHOLD: int = int(os.getenv("BALANCE_THRESHOLD", "530"))
@@ -189,6 +189,45 @@ class Config:
         })
 
     @classmethod
+    def update_general_settings(
+        cls,
+        interval_seconds: Optional[int] = None,
+        target_time: Optional[str] = None,
+        threshold: Optional[int] = None,
+        gap_min_seconds: Optional[int] = None,
+        gap_max_seconds: Optional[int] = None,
+        use_proxy_rotation: Optional[bool] = None,
+        headless: Optional[bool] = None,
+    ) -> dict:
+        """Update tracker settings in-memory and persist to .env."""
+        updates = {}
+        if interval_seconds is not None:
+            cls.CHECK_INTERVAL_SECONDS = max(10, int(interval_seconds))
+            updates["CHECK_INTERVAL_SECONDS"] = str(cls.CHECK_INTERVAL_SECONDS)
+        if target_time is not None:
+            cls.TARGET_CHECK_TIME = str(target_time).strip()
+            updates["TARGET_CHECK_TIME"] = cls.TARGET_CHECK_TIME
+        if threshold is not None:
+            cls.BALANCE_THRESHOLD = max(0, int(threshold))
+            updates["BALANCE_THRESHOLD"] = str(cls.BALANCE_THRESHOLD)
+        if gap_min_seconds is not None:
+            cls.ACCOUNT_FETCH_GAP_MIN_SECONDS = max(0, int(gap_min_seconds))
+            updates["ACCOUNT_FETCH_GAP_MIN_SECONDS"] = str(cls.ACCOUNT_FETCH_GAP_MIN_SECONDS)
+        if gap_max_seconds is not None:
+            cls.ACCOUNT_FETCH_GAP_MAX_SECONDS = max(cls.ACCOUNT_FETCH_GAP_MIN_SECONDS, int(gap_max_seconds))
+            updates["ACCOUNT_FETCH_GAP_MAX_SECONDS"] = str(cls.ACCOUNT_FETCH_GAP_MAX_SECONDS)
+        if use_proxy_rotation is not None:
+            cls.USE_PROXY_ROTATION = bool(use_proxy_rotation)
+            updates["USE_PROXY_ROTATION"] = "true" if cls.USE_PROXY_ROTATION else "false"
+        if headless is not None:
+            cls.HEADLESS = bool(headless)
+            updates["HEADLESS"] = "true" if cls.HEADLESS else "false"
+
+        if updates:
+            cls.save_to_env(updates)
+        return updates
+
+    @classmethod
     def get_safe_dict(cls) -> dict:
         """Return safe config dictionary with passwords strictly redacted."""
         return {
@@ -196,6 +235,10 @@ class Config:
             "PORT": cls.PORT,
             "HEADLESS": cls.HEADLESS,
             "CHECK_INTERVAL_SECONDS": cls.CHECK_INTERVAL_SECONDS,
+            "TARGET_CHECK_TIME": cls.TARGET_CHECK_TIME,
+            "ACCOUNT_FETCH_GAP_MIN_SECONDS": cls.ACCOUNT_FETCH_GAP_MIN_SECONDS,
+            "ACCOUNT_FETCH_GAP_MAX_SECONDS": cls.ACCOUNT_FETCH_GAP_MAX_SECONDS,
+            "USE_PROXY_ROTATION": cls.USE_PROXY_ROTATION,
             "BALANCE_THRESHOLD": cls.BALANCE_THRESHOLD,
             "SWAGBUCKS_EMAIL": cls.SWAGBUCKS_EMAIL if cls.SWAGBUCKS_EMAIL else None,
             "HAS_SWAGBUCKS_PASSWORD": bool(cls.SWAGBUCKS_PASSWORD),

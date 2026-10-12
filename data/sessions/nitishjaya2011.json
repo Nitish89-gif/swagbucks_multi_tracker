@@ -72,30 +72,30 @@
     },
     {
       "name": "proson",
-      "value": "MIh5oGrKXPA",
+      "value": "H7augGrM4uU",
       "domain": ".swagbucks.com",
       "path": "/",
-      "expires": 1826206961.279876,
+      "expires": 1826372326.34666,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "AWSALB",
-      "value": "hF8D4ymRYeZLwPX53zVLkhSbGk5doV+BR73xjq47oY3wxC712v6qmhoL2pXzhsTHb74xpEv6Qn6j3IZBJHNfeOuB4qxpBl4+wEGC99iZ3Ssk6AsOH+L6XoKfF2i7",
+      "value": "zZO1YAVV3kJo971dhD7yu0qmMgz9WxPcSW3VwsLd60gV86ALTML0zm5GJzYLWb1EBouc1sSDs5I6FI2RRMMYHlX4Y8/DX+dwopQC1t5KSTMq6syJ3OmnVINHvKQb",
       "domain": "www.swagbucks.com",
       "path": "/",
-      "expires": 1792251762.390449,
+      "expires": 1792418875.201087,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "AWSALBCORS",
-      "value": "hF8D4ymRYeZLwPX53zVLkhSbGk5doV+BR73xjq47oY3wxC712v6qmhoL2pXzhsTHb74xpEv6Qn6j3IZBJHNfeOuB4qxpBl4+wEGC99iZ3Ssk6AsOH+L6XoKfF2i7",
+      "value": "zZO1YAVV3kJo971dhD7yu0qmMgz9WxPcSW3VwsLd60gV86ALTML0zm5GJzYLWb1EBouc1sSDs5I6FI2RRMMYHlX4Y8/DX+dwopQC1t5KSTMq6syJ3OmnVINHvKQb",
       "domain": "www.swagbucks.com",
       "path": "/",
-      "expires": 1792251762.390571,
+      "expires": 1792418875.201208,
       "httpOnly": false,
       "secure": true,
       "sameSite": "None"

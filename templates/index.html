@@ -584,14 +584,60 @@
     }
 
     .aic-badge.session-ok {
-      background: rgba(255, 255, 255, 0.06);
-      color: #e5e7eb;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
     }
 
     .aic-badge.session-expired {
       background: rgba(239, 68, 68, 0.2);
       color: #f87171;
       border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    .aic-badge.session-blocked {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+
+    .aic-badge.session-error {
+      background: rgba(239, 68, 68, 0.25);
+      color: #fca5a5;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+
+    /* Toast Notifications */
+    #toastContainer {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 9999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .toast {
+      pointer-events: auto;
+      padding: 12px 18px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      animation: toastFadeIn 0.3s ease;
+      max-width: 380px;
+    }
+    .toast-info { background: #1e293b; border: 1px solid #3b82f6; color: #93c5fd; }
+    .toast-success { background: #064e3b; border: 1px solid #10b981; color: #a7f3d0; }
+    .toast-warning { background: #78350f; border: 1px solid #f59e0b; color: #fde68a; }
+    .toast-error { background: #7f1d1d; border: 1px solid #ef4444; color: #fca5a5; }
+    @keyframes toastFadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .aic-middle {
@@ -740,7 +786,8 @@
         </button>
         <button class="btn" onclick="openAddAccountModal()">➕ Add Account</button>
         <button class="btn btn-success" onclick="scrollToMobileSettings()">📱 Phone Alerts</button>
-        <button class="btn" onclick="openSettingsModal()">⚙️</button>
+        <button class="btn" onclick="scrollToEmailSettings()" style="border-color: #3b82f6; color: #93c5fd;">📧 Email Alerts</button>
+        <button class="btn" onclick="openSettingsModal()">⚙️ Settings</button>
       </div>
     </div>
   </header>
@@ -749,6 +796,12 @@
 
     <!-- Alerts Container (Session Expired, etc.) -->
     <div id="alertsContainer"></div>
+
+    <!-- Check Now Balance Comparison Banner -->
+    <div id="checkComparisonBanner" style="display: none; border-radius: 10px; padding: 12px 18px; margin-bottom: 18px; font-size: 13px; font-weight: 600; align-items: center; justify-content: space-between;">
+      <div id="checkComparisonText"></div>
+      <button class="close-btn" onclick="document.getElementById('checkComparisonBanner').style.display='none'" style="font-size: 16px; margin-left: 12px; color: inherit;">✕</button>
+    </div>
 
     <!-- 5 KPI Overview Cards (Mobile-friendly, Dynamic) -->
     <div class="kpi-grid">
@@ -784,18 +837,18 @@
       <div class="kpi-card" style="border-color: rgba(245, 158, 11, 0.4);">
         <div class="kpi-title" style="color: #fbbf24;">🕒 LAST CHECKED TIME</div>
         <div class="kpi-value" id="kpiLastChecked" style="font-size: 14px; color: #fde68a; font-family: 'JetBrains Mono', monospace; word-break: break-all;">--</div>
-        <div class="kpi-sub" id="kpiLastCheckedSub">Every 5h Cycle</div>
+        <div class="kpi-sub" id="kpiLastCheckedSub">Every 1h Cycle</div>
         <div style="font-size: 11px; color: #38bdf8; margin-top: 4px; font-weight: 600;">⏳ Next in: <span id="kpiCountdown" style="font-family: 'JetBrains Mono', monospace;">--</span></div>
       </div>
     </div>
 
-    <!-- 5-HOUR SCHEDULE & ANTI-BOT PROTECTION BANNER -->
+    <!-- HOURLY SCHEDULE & ANTI-BOT PROTECTION BANNER -->
     <div id="scheduleBanner" style="background: rgba(30, 41, 59, 0.7); border: 1px solid rgba(59, 130, 246, 0.35); border-radius: 12px; padding: 14px 18px; margin-bottom: 20px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px;">
       <div style="display: flex; align-items: center; gap: 12px;">
         <div style="font-size: 26px; line-height: 1;">⏱️</div>
         <div>
           <div style="font-size: 14px; font-weight: 700; color: #93c5fd;">
-            5-Hour Check Schedule: <span id="bannerTargetTime" style="color: #fbbf24;">Every 5 Hours</span>
+            Hourly Check Schedule: <span id="bannerTargetTime" style="color: #fbbf24;">Every 1 Hour</span>
           </div>
           <div style="font-size: 12px; color: #94a3b8; margin-top: 3px;">
             Next Scheduled Check: <strong id="bannerNextCheckTime" style="color: #f1f5f9;">--</strong> &bull;
@@ -804,11 +857,10 @@
         </div>
       </div>
       <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <button class="btn btn-sm" id="btnPauseResumeTimer" onclick="togglePauseTimer()" title="Pause or Resume automated timer countdown">⏸️ Pause</button>
+        <button class="btn btn-sm" id="btnResetTimer" onclick="resetTimer()" title="Reset countdown to full interval">🔄 Reset</button>
         <div class="status-pill" style="background: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); color: #34d399; font-size: 11px;">
-          🛡️ 2-3 Min Staggered Gap
-        </div>
-        <div class="status-pill" style="background: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); color: #c084fc; font-size: 11px;">
-          🌐 Rotating IP Active
+          🛡️ Anti-Bot Gap Active
         </div>
       </div>
     </div>
@@ -876,6 +928,21 @@
         </button>
       </div>
 
+      <!-- Mobile Topic Settings Row -->
+      <div style="background: #090d16; border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; margin-bottom: 12px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex: 1; min-width: 260px;">
+          <label style="font-size: 12px; color: var(--text-muted); font-weight: 600; white-space: nowrap;">Mobile Topic:</label>
+          <input type="text" class="form-input" id="inputMobileTopic" value="sb_alerts_9676061877" placeholder="e.g. sb_alerts_9676061877" style="min-height: 36px; font-size: 13px; font-family: 'JetBrains Mono', monospace;">
+        </div>
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <label style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="cfgMobileEnabled" checked style="width: 16px; height: 16px;">
+            <span>Enabled</span>
+          </label>
+          <button class="btn btn-sm btn-primary" onclick="saveMobileSettings()">💾 Save Topic</button>
+        </div>
+      </div>
+
       <!-- Mobile Push Topic & Link Details -->
       <div style="background: #090d16; border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; font-size: 12px;">
         <div>
@@ -926,6 +993,100 @@
         </div>
         <div id="simResultBox" style="display: none; margin-top: 12px; padding: 10px 12px; border-radius: 6px; font-size: 12px; line-height: 1.5;"></div>
       </div>
+    </div>
+
+    <!-- FEATURED SECTION: Instant Email Alerts (SMTP) -->
+    <div class="featured-section" id="emailSettingsSection" style="border-color: rgba(59, 130, 246, 0.5); background: linear-gradient(180deg, rgba(37, 99, 235, 0.08) 0%, rgba(17, 24, 39, 0.95) 100%);">
+      <div class="section-title-row">
+        <div class="section-title">
+          <span>📧 Instant Email Alerts (SMTP)</span>
+          <span class="status-pill" id="badgeEmailStatusPill">
+            <div class="pulse-dot" id="dotEmailStatus"></div>
+            <span id="textEmailStatusBadge">Checking...</span>
+          </span>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <label style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; cursor: pointer;">
+            <input type="checkbox" id="cfgEmailEnabled" checked style="width: 16px; height: 16px;">
+            <span>Enable Email Alerts</span>
+          </label>
+        </div>
+      </div>
+
+      <div style="background: rgba(37, 99, 235, 0.1); border: 1px solid rgba(37, 99, 235, 0.25); border-radius: 10px; padding: 14px; margin-bottom: 16px;">
+        <div style="font-size: 13px; color: #bfdbfe; line-height: 1.5;">
+          <strong>Automatic Threshold Alerts via SMTP:</strong> Delivers instant alerts whenever any account reaches or crosses <strong>530 SB</strong>.<br>
+          <span style="color: #93c5fd; font-size: 12px; display: inline-block; margin-top: 5px;">
+            💡 <strong>Gmail Users:</strong> Use a 16-character Google App Password (not your standard Google account password).
+          </span>
+        </div>
+      </div>
+
+      <!-- Email Configuration Form -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-bottom: 14px;">
+        <div>
+          <label class="form-label">Bot / Sender Email *</label>
+          <input type="email" class="form-input" id="cfgBotEmail" placeholder="yourbot@gmail.com" onchange="autoDetectSmtp(this.value)" onblur="autoDetectSmtp(this.value)">
+          <div class="form-hint">The email sending notifications</div>
+        </div>
+        <div>
+          <label class="form-label">Bot App Password</label>
+          <div style="position: relative;">
+            <input type="password" class="form-input" id="cfgBotPassword" placeholder="••••••••••••••••" style="padding-right: 40px;">
+            <button type="button" onclick="togglePasswordVisibility('cfgBotPassword', this)" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #9ca3af; cursor: pointer; font-size: 14px;">👁️</button>
+          </div>
+          <div class="form-hint" id="cfgBotPasswordHint">Leave blank to keep currently saved password</div>
+        </div>
+        <div>
+          <label class="form-label">Personal / Receiver Email *</label>
+          <input type="email" class="form-input" id="cfgReceiverEmail" placeholder="yourpersonal@gmail.com">
+          <div class="form-hint">Where alerts should be received</div>
+        </div>
+        <div>
+          <label class="form-label">Swagbucks Master Email (Optional)</label>
+          <input type="email" class="form-input" id="cfgSbEmail" placeholder="account@example.com">
+          <div class="form-hint">Primary Swagbucks account email</div>
+        </div>
+      </div>
+
+      <!-- Advanced SMTP Collapsible -->
+      <div style="margin-bottom: 14px;">
+        <button type="button" class="btn btn-sm" onclick="toggleAdvancedSmtp()" style="background: rgba(255, 255, 255, 0.05); font-size: 11px;">
+          <span>⚙️ Advanced SMTP Settings (<span id="lblCurrentHostPort">smtp.gmail.com:587</span>)</span>
+          <span id="arrowAdvanced" style="margin-left: 4px;">▼</span>
+        </button>
+        <div id="panelAdvancedSmtp" style="display: none; background: #090d16; border: 1px solid var(--card-border); border-radius: 8px; padding: 12px; margin-top: 8px;">
+          <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 10px;">
+            <div>
+              <label class="form-label" style="font-size: 11px;">SMTP Host</label>
+              <input type="text" class="form-input" id="cfgSmtpHost" value="smtp.gmail.com" style="min-height: 36px; font-size: 12px;">
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11px;">SMTP Port</label>
+              <input type="number" class="form-input" id="cfgSmtpPort" value="587" style="min-height: 36px; font-size: 12px;">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Actions Row -->
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <button class="btn btn-primary" id="btnSaveEmailSettings" onclick="saveEmailSettings()">
+          <span id="saveEmailSpinner" class="spinner" style="display: none;"></span>
+          <span id="saveEmailBtnText">💾 Save Email Settings</span>
+        </button>
+        <button class="btn" id="btnTestEmailConnection" onclick="testEmailConnection()">
+          <span id="connEmailSpinner" class="spinner" style="display: none;"></span>
+          <span id="connEmailBtnText">🔌 Test Connection</span>
+        </button>
+        <button class="btn btn-success" id="btnSendTestEmail" onclick="sendTestEmail()">
+          <span id="sendEmailSpinner" class="spinner" style="display: none;"></span>
+          <span id="sendEmailBtnText">📤 Send Test Email</span>
+        </button>
+      </div>
+
+      <!-- Result Banner -->
+      <div id="emailTestResultBanner" style="display: none; margin-top: 14px; border-radius: 8px; padding: 12px 14px; font-size: 13px; line-height: 1.5;"></div>
     </div>
 
     <!-- FEATURED SECTION: Accounts with SB Balance >= 530 -->
@@ -1059,31 +1220,37 @@
       </div>
 
       <div style="margin-bottom: 14px; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 10px 14px; font-size: 12px; color: #93c5fd;">
-        ⏱️ <strong>5-Hour Automated Schedule:</strong> Tracker checks balances automatically every 5 hours (18,000s) to record fresh and accurate updates for every account.
+        ⏱️ <strong>Hourly Automated Schedule:</strong> Tracker checks balances automatically every 1 hour (3,600s / 60 minutes) to record fresh and accurate updates for every account.
       </div>
 
       <div class="form-group">
         <label class="form-label">Check Interval (seconds)</label>
-        <input type="number" class="form-input" id="settingInterval" min="60" max="86400" value="18000">
-        <div class="form-hint">Default: 18,000s (5 Hours)</div>
+        <input type="number" class="form-input" id="settingInterval" min="60" max="86400" value="3600">
+        <div class="form-hint">Default: 3,600s (1 Hour)</div>
       </div>
 
       <div class="form-group">
         <label class="form-label">Check Cycle Target</label>
-        <input type="text" class="form-input" id="settingTargetTime" value="Every 5 Hours">
-        <div class="form-hint">Default: Every 5 Hours</div>
+        <input type="text" class="form-input" id="settingTargetTime" value="Every 1 Hour">
+        <div class="form-hint">Default: Every 1 Hour</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Alert Threshold (SB)</label>
+        <input type="number" class="form-input" id="settingThreshold" min="1" max="100000" value="530">
+        <div class="form-hint">Default: 530 SB (Mobile & email alerts trigger when balance crosses this)</div>
       </div>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
         <div class="form-group">
           <label class="form-label">Anti-Bot Min Gap (sec)</label>
-          <input type="number" class="form-input" id="settingGapMin" min="10" max="600" value="120">
-          <div class="form-hint">Default: 120s (2 min)</div>
+          <input type="number" class="form-input" id="settingGapMin" min="0" max="600" value="5">
+          <div class="form-hint">Default: 5s</div>
         </div>
         <div class="form-group">
           <label class="form-label">Anti-Bot Max Gap (sec)</label>
-          <input type="number" class="form-input" id="settingGapMax" min="20" max="600" value="180">
-          <div class="form-hint">Default: 180s (3 min)</div>
+          <input type="number" class="form-input" id="settingGapMax" min="0" max="600" value="15">
+          <div class="form-hint">Default: 15s</div>
         </div>
       </div>
 
@@ -1091,7 +1258,7 @@
       <div style="border-top: 1px solid var(--card-border); padding-top: 14px; margin-top: 10px;">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
           <label class="form-label" style="margin-bottom: 0;">🌐 Different IP Addresses / Proxy Rotation</label>
-          <input type="checkbox" id="settingProxyRotation" checked style="width: 18px; height: 18px;">
+          <input type="checkbox" id="settingProxyRotation" style="width: 18px; height: 18px;">
         </div>
         <div class="form-hint" style="margin-bottom: 8px;">
           Current Machine IP: <strong id="lblCurrentDirectIp" style="color: #38bdf8;">--</strong>
@@ -1106,6 +1273,8 @@
         <input type="checkbox" id="settingHeadless" checked style="width: 18px; height: 18px;">
         <label for="settingHeadless" class="form-label" style="margin-bottom: 0;">Headless (Silent Background Chrome)</label>
       </div>
+
+      <div id="settingsStatusMsg" style="display: none; padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px;"></div>
 
       <div class="modal-actions">
         <button class="btn" onclick="closeSettingsModal()">Cancel</button>
@@ -1158,12 +1327,37 @@
     </div>
   </div>
 
+  <!-- Toast Notification Container -->
+  <div id="toastContainer"></div>
+
   <!-- Application Script -->
   <script>
     let chartInstance = null;
     let pendingAccountId = null;
     let hasLoadedInitialConfig = false;
     let currentLoginModalAccount = null;
+    window._timerPaused = false;
+    window._activeCountdownSec = 3600;
+    window._manualCheckTriggered = false;
+
+    // Toast Notification System
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      let icon = 'ℹ️';
+      if (type === 'success') icon = '✅';
+      if (type === 'warning') icon = '⚠️';
+      if (type === 'error') icon = '❌';
+      toast.innerHTML = `<span>${icon}</span><span>${message}</span>`;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transition = 'opacity 0.4s ease';
+        setTimeout(() => toast.remove(), 400);
+      }, 4000);
+    }
 
     // Account Email Click Modal Handlers
     function handleAccountEmailClick(accountId, email) {
@@ -1178,30 +1372,28 @@
       currentLoginModalAccount = null;
     }
 
-    // Smooth scroll to Email settings
+    // Smooth scroll helpers
     function scrollToEmailSettings() {
       const el = document.getElementById('emailSettingsSection');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // Smooth scroll to Mobile Phone settings
     function scrollToMobileSettings() {
       const el = document.getElementById('mobileSettingsSection');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // Copy direct mobile link
+    // Mobile Phone Alerts Management
     function copyMobileAlertLink() {
       const topic = document.getElementById('lblMobileTopic').innerText.trim() || 'sb_alerts_9676061877';
       const url = `https://ntfy.sh/${topic}`;
       navigator.clipboard.writeText(url).then(() => {
-        alert(`Mobile alert link copied to clipboard:\n\n${url}\n\nOpen this in your mobile browser and tap Subscribe!`);
+        showToast('Mobile alert link copied to clipboard!', 'success');
       }).catch(() => {
         prompt('Copy this URL to open on your phone:', url);
       });
     }
 
-    // Send Real Mobile Test Alert
     async function sendMobileTestAlert() {
       const banner = document.getElementById('mobileTestResultBanner');
       const spinner = document.getElementById('testMobileSpinner');
@@ -1219,22 +1411,25 @@
         if (data.success) {
           showBanner(banner, 'success', `
             <strong>🔔 Phone Test Alert Sent Successfully!</strong><br>
-            A high-priority alert with sound & vibration was pushed to your phone right now.<br>
+            A high-priority alert with sound & vibration was pushed to your phone.<br>
             <small style="color: #a7f3d0; margin-top: 6px; display: block;">
               &bull; Topic: <code>${data.mobile ? data.mobile.topic : 'sb_alerts_9676061877'}</code><br>
-              &bull; Direct Link: <a href="${data.mobile ? data.mobile.url : '#'}" target="_blank" style="color: #fff; text-decoration: underline;">${data.mobile ? data.mobile.url : ''}</a><br>
+              &bull; Direct Link: <a href="${data.mobile ? data.mobile.url || data.mobile.push_url : '#'}" target="_blank" style="color: #fff; text-decoration: underline;">${data.mobile ? data.mobile.url || data.mobile.push_url : ''}</a><br>
               &bull; Time Checked: ${new Date().toLocaleTimeString()}
             </small>
           `);
+          showToast('Mobile test alert delivered!', 'success');
         } else {
           showBanner(banner, 'error', `
             <strong>❌ Mobile alert test failed:</strong><br>
             ${data.detail || 'Could not dispatch push notification.'}
           `);
+          showToast('Mobile alert test failed', 'error');
         }
         fetchDashboard();
       } catch (err) {
-        showBanner(banner, 'error', `Network error while sending mobile test: ${err}`);
+        showBanner(banner, 'error', `Network error while sending mobile test: ${err.message}`);
+        showToast('Network error: ' + err.message, 'error');
       } finally {
         spinner.style.display = 'none';
         btnText.innerText = '🔔 Send Test Alert to Phone';
@@ -1242,7 +1437,44 @@
       }
     }
 
-    // Auto-detect SMTP settings from sender email domain
+    async function loadMobileSettings() {
+      try {
+        const res = await fetch('/api/settings/mobile');
+        if (res.ok) {
+          const data = await res.json();
+          const topicInput = document.getElementById('inputMobileTopic');
+          const enabledCheck = document.getElementById('cfgMobileEnabled');
+          if (topicInput && data.topic) topicInput.value = data.topic;
+          if (enabledCheck && data.enabled !== undefined) enabledCheck.checked = data.enabled;
+        }
+      } catch (e) {
+        console.error('Error loading mobile settings:', e);
+      }
+    }
+
+    async function saveMobileSettings() {
+      const topic = document.getElementById('inputMobileTopic').value.trim() || 'sb_alerts_9676061877';
+      const enabled = document.getElementById('cfgMobileEnabled').checked;
+
+      try {
+        const res = await fetch('/api/settings/mobile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ topic, enabled })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast(data.message || 'Mobile alert topic saved!', 'success');
+          fetchDashboard();
+        } else {
+          showToast(data.detail || 'Failed to save mobile settings', 'error');
+        }
+      } catch (err) {
+        showToast('Error saving mobile settings: ' + err.message, 'error');
+      }
+    }
+
+    // Email Settings & SMTP Management
     function autoDetectSmtp(email) {
       if (!email || !email.includes('@')) return;
       const domain = email.toLowerCase().split('@')[1];
@@ -1270,9 +1502,9 @@
         port = 587;
       }
 
-      hostInput.value = host;
-      portInput.value = port;
-      label.innerText = `${host}:${port}`;
+      if (hostInput) hostInput.value = host;
+      if (portInput) portInput.value = port;
+      if (label) label.innerText = `${host}:${port}`;
     }
 
     function toggleAdvancedSmtp() {
@@ -1280,364 +1512,242 @@
       const arrow = document.getElementById('arrowAdvanced');
       if (panel.style.display === 'none') {
         panel.style.display = 'block';
-        arrow.innerText = '▲';
+        if (arrow) arrow.innerText = '▲';
       } else {
         panel.style.display = 'none';
-        arrow.innerText = '▼';
+        if (arrow) arrow.innerText = '▼';
       }
     }
 
-    function toggleThresholdSimulator() {
-      const panel = document.getElementById('panelThresholdSimulator');
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-      const res = document.getElementById('simResultBox');
-      if (res) res.style.display = 'none';
-    }
-
-    // Dashboard Polling and Rendering
-    async function fetchDashboard() {
-      try {
-        const res = await fetch('/api/dashboard');
-        if (!res.ok) return;
-        const data = await res.json();
-        renderDashboard(data);
-      } catch (err) {
-        console.error("Dashboard poll error:", err);
-      }
-    }
-
-    function renderDashboard(data) {
-      // 1. KPI 1: TOTAL ACCOUNTS (Dynamically calculated)
-      const totalAccounts = data.total_accounts !== undefined ? data.total_accounts : (data.accounts ? data.accounts.length : 0);
-      document.getElementById('kpiTotalAccounts').innerText = totalAccounts;
-      document.getElementById('kpiAccountsSub').innerText = `${totalAccounts} tracked in database`;
-
-      // 2. KPI 2: ACCOUNTS ABOVE 530 SB
-      const countAbove530 = data.count_above_530 || 0;
-      document.getElementById('kpiCountAbove530').innerText = countAbove530;
-      document.getElementById('badgeAbove530Count').innerText = `${countAbove530} Accounts`;
-      document.getElementById('kpiAbove530Sub').innerText = countAbove530 > 0 ? `${countAbove530} accounts ready` : 'No accounts currently > 530';
-
-      // 3. KPI 3: ALERT THRESHOLD
-      document.getElementById('kpiThresholdValue').innerText = `${data.threshold || 530} SB`;
-
-      // 4. KPI 4: MOBILE PHONE ALERT Status
-      const mobileStatus = data.mobile_status || {};
-      const isMobileEnabled = data.mobile_alerts_enabled !== false;
-      const kpiMobileAlertEl = document.getElementById('kpiMobileAlertStatus');
-      const kpiMobileSubEl = document.getElementById('kpiMobileAlertSub');
-      const badgeMobilePill = document.getElementById('badgeMobileStatusPill');
-      const dotMobile = document.getElementById('dotMobileStatus');
-      const textMobileBadge = document.getElementById('textMobileStatusBadge');
-
-      if (isMobileEnabled) {
-        if (kpiMobileAlertEl) {
-          kpiMobileAlertEl.innerText = 'Active';
-          kpiMobileAlertEl.style.color = '#34d399';
-        }
-        if (kpiMobileSubEl) kpiMobileSubEl.innerText = `Topic: ${data.mobile_push_topic || 'sb_alerts_9676061877'}`;
-        if (badgeMobilePill) badgeMobilePill.className = 'status-pill';
-        if (dotMobile) dotMobile.className = 'pulse-dot';
-        if (textMobileBadge) textMobileBadge.innerText = 'Active & Ready';
+    function togglePasswordVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      if (input.type === 'password') {
+        input.type = 'text';
+        if (btn) btn.innerText = '🔒';
       } else {
-        if (kpiMobileAlertEl) {
-          kpiMobileAlertEl.innerText = 'Disabled';
-          kpiMobileAlertEl.style.color = '#fbbf24';
-        }
-        if (kpiMobileSubEl) kpiMobileSubEl.innerText = 'Tap to enable';
-        if (badgeMobilePill) badgeMobilePill.className = 'status-pill unconfigured';
-        if (dotMobile) dotMobile.className = 'pulse-dot amber';
-        if (textMobileBadge) textMobileBadge.innerText = 'Disabled';
+        input.type = 'password';
+        if (btn) btn.innerText = '👁️';
       }
+    }
 
-      // 5. KPI 5 & Headers: LAST CHECKED TIME
-      function formatExactTimestamp(rawTs) {
-        if (!rawTs || rawTs === 'Never' || rawTs === '--') {
-          return '2026-10-10 21:12:55 (09:12:55 PM IST)';
-        }
-        let ts = rawTs.includes('14:17:') ? '2026-10-10 21:12:55' : rawTs;
-        try {
-          const parts = ts.trim().split(' ');
-          if (parts.length === 2) {
-            const datePart = parts[0];
-            const timePart = parts[1];
-            const tPieces = timePart.split(':');
-            if (tPieces.length >= 2) {
-              const h = parseInt(tPieces[0], 10);
-              const m = tPieces[1];
-              const s = tPieces[2] || '00';
-              const ampm = h >= 12 ? 'PM' : 'AM';
-              const h12 = h % 12 || 12;
-              const h12Pad = String(h12).padStart(2, '0');
-              return `${datePart} ${timePart} • ${h12Pad}:${m}:${s} ${ampm} IST`;
+    async function loadEmailSettings() {
+      try {
+        const res = await fetch('/api/settings/email');
+        if (res.ok) {
+          const data = await res.json();
+          const enabledCheck = document.getElementById('cfgEmailEnabled');
+          const botEmail = document.getElementById('cfgBotEmail');
+          const receiverEmail = document.getElementById('cfgReceiverEmail');
+          const hostInput = document.getElementById('cfgSmtpHost');
+          const portInput = document.getElementById('cfgSmtpPort');
+          const lblHostPort = document.getElementById('lblCurrentHostPort');
+          const passHint = document.getElementById('cfgBotPasswordHint');
+
+          if (enabledCheck) enabledCheck.checked = data.enabled !== false;
+          if (botEmail && data.sender_email) botEmail.value = data.sender_email;
+          if (receiverEmail && data.receiver_email) receiverEmail.value = data.receiver_email;
+          if (hostInput && data.smtp_host) hostInput.value = data.smtp_host;
+          if (portInput && data.smtp_port) portInput.value = data.smtp_port;
+          if (lblHostPort && data.smtp_host && data.smtp_port) {
+            lblHostPort.innerText = `${data.smtp_host}:${data.smtp_port}`;
+          }
+          if (passHint) {
+            if (data.has_password) {
+              passHint.innerText = '✓ App password currently saved. Leave blank to keep.';
+              passHint.style.color = '#34d399';
+            } else {
+              passHint.innerText = 'No password currently saved.';
+              passHint.style.color = 'var(--text-dim)';
             }
           }
-        } catch(e) {}
-        return ts;
-      }
 
-      function getExactNextScheduledCheckString(nextTs) {
-        if (nextTs) return formatExactTimestamp(nextTs);
-        const sec = (window._activeCountdownSec !== undefined && window._activeCountdownSec > 0) ? window._activeCountdownSec : 18000;
-        const targetDate = new Date(Date.now() + sec * 1000);
-        const yyyy = targetDate.getFullYear();
-        const mm = String(targetDate.getMonth() + 1).padStart(2, '0');
-        const dd = String(targetDate.getDate()).padStart(2, '0');
-        const hh = String(targetDate.getHours()).padStart(2, '0');
-        const min = String(targetDate.getMinutes()).padStart(2, '0');
-        const ss = String(targetDate.getSeconds()).padStart(2, '0');
-        return formatExactTimestamp(`${yyyy}-${mm}-${dd} ${hh}:${min}:${ss}`);
-      }
-
-      const rawLastCheck = data.last_check_time || data.last_successful_check || '2026-10-10 21:12:55';
-      const exactCheckTimeFormatted = formatExactTimestamp(rawLastCheck);
-
-      const kpiLastCheckEl = document.getElementById('kpiLastChecked');
-      const kpiLastCheckSubEl = document.getElementById('kpiLastCheckedSub');
-      const headerLastCheckEl = document.getElementById('headerLastCheckedTime');
-      const lblMobileLastCheckEl = document.getElementById('lblMobileLastCheck');
-      if (kpiLastCheckEl) kpiLastCheckEl.innerText = rawLastCheck.includes('14:17:') ? '2026-10-10 21:12:55' : rawLastCheck;
-      if (headerLastCheckEl) headerLastCheckEl.innerText = exactCheckTimeFormatted;
-      if (lblMobileLastCheckEl) lblMobileLastCheckEl.innerText = exactCheckTimeFormatted;
-      if (kpiLastCheckSubEl) kpiLastCheckSubEl.innerText = `Verified • 5h Cycle`;
-
-      // 6. 5-HOUR COUNTDOWN & BANNER
-      function formatSeconds(sec) {
-        if (!sec || sec <= 0) return '00h 00m 00s';
-        const h = Math.floor(sec / 3600);
-        const m = Math.floor((sec % 3600) / 60);
-        const s = sec % 60;
-        return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
-      }
-
-      function updateCountdownUI() {
-        const sec = (window._activeCountdownSec !== undefined && window._activeCountdownSec > 0) 
-          ? window._activeCountdownSec 
-          : 0;
-        const formatted = formatSeconds(sec);
-        const bannerCountdown = document.getElementById('bannerCountdown');
-        const kpiCountdown = document.getElementById('kpiCountdown');
-        if (bannerCountdown) bannerCountdown.innerText = formatted;
-        if (kpiCountdown) kpiCountdown.innerText = formatted;
-      }
-
-      // Initialize real-time 1-second ticker loop
-      if (!window._countdownTimerInterval) {
-        window._activeCountdownSec = (data.countdown_seconds !== undefined) ? data.countdown_seconds : 18000;
-        updateCountdownUI();
-        window._countdownTimerInterval = setInterval(() => {
-          if (window._activeCountdownSec > 0) {
-            window._activeCountdownSec--;
-          }
-          updateCountdownUI();
-        }, 1000);
-      }
-
-      // Sync remaining seconds from server
-      if (data.countdown_seconds !== undefined && data.countdown_seconds !== null) {
-        window._activeCountdownSec = data.countdown_seconds;
-      }
-      updateCountdownUI();
-
-      const bannerTarget = document.getElementById('bannerTargetTime');
-      const bannerNextCheck = document.getElementById('bannerNextCheckTime');
-      if (bannerTarget) bannerTarget.innerText = `Every 5 Hours (${data.interval_seconds ? data.interval_seconds + 's' : '18,000s'} Cycle)`;
-      if (bannerNextCheck) {
-        bannerNextCheck.innerText = data.next_scheduled_check 
-          ? formatExactTimestamp(data.next_scheduled_check)
-          : getExactNextScheduledCheckString();
-      }
-
-      // 7. LIVE ANTI-BOT PROGRESS & 2-3 MIN GAP STATUS
-      const liveProgressCard = document.getElementById('liveProgressCard');
-      if (liveProgressCard) {
-        if (data.is_checking) {
-          liveProgressCard.style.display = 'block';
-          const titleEl = document.getElementById('liveProgressTitle');
-          const indexEl = document.getElementById('liveProgressIndex');
-          const detailEl = document.getElementById('liveProgressDetail');
-          const barEl = document.getElementById('liveProgressBar');
-
-          const curIdx = data.checking_index || 1;
-          const totAcc = data.checking_total || (data.accounts ? data.accounts.length : 1);
-          if (indexEl) indexEl.innerText = `Account ${curIdx}/${totAcc}`;
-
-          const pct = totAcc > 0 ? Math.round((curIdx / totAcc) * 100) : 50;
-          if (barEl) barEl.style.width = `${pct}%`;
-
-          if (data.checking_state === 'gap') {
-            if (titleEl) titleEl.innerText = `⏳ Anti-Bot Delay: Waiting ${data.gap_remaining || 0}s...`;
-            if (detailEl) detailEl.innerHTML = `🛡️ <strong>2-3 min delay between accounts active:</strong> Finished <em>${data.current_checking_account}</em>. Pausing before checking <em>${data.next_account_id || 'next account'}</em> to look organic and avoid rate limits.`;
-          } else {
-            if (titleEl) titleEl.innerText = `🔄 Fetching: ${data.current_checking_account || 'Checking account'}...`;
-            if (detailEl) detailEl.innerHTML = `🌐 Using Rotating IP: <strong style="color: #38bdf8;">${data.checking_ip || 'Proxy/Direct IP'}</strong> &bull; Querying live balance safely without direct concurrency`;
-          }
-        } else {
-          liveProgressCard.style.display = 'none';
+          updateEmailBadge(data);
         }
+      } catch (e) {
+        console.error('Error loading email settings:', e);
       }
+    }
 
-      // Update Mobile Links & Topic
-      if (data.mobile_push_url) {
-        const btnPhone = document.getElementById('btnOpenPhoneChannel');
-        const linkDirect = document.getElementById('linkMobileDirect');
-        const lblTopic = document.getElementById('lblMobileTopic');
-        if (btnPhone) btnPhone.href = data.mobile_push_url;
-        if (linkDirect) {
-          linkDirect.href = data.mobile_push_url;
-          linkDirect.innerText = data.mobile_push_url;
-        }
-        if (lblTopic) lblTopic.innerText = data.mobile_push_topic || 'sb_alerts_9676061877';
-      }
+    function updateEmailBadge(data) {
+      const pill = document.getElementById('badgeEmailStatusPill');
+      const dot = document.getElementById('dotEmailStatus');
+      const txt = document.getElementById('textEmailStatusBadge');
+      if (!pill || !dot || !txt) return;
 
-      // Populate simulation email on initial load
-      if (!hasLoadedInitialConfig) {
-        if (data.swagbucks_email) {
-          const simEmail = document.getElementById('simAccEmail');
-          if (simEmail) simEmail.value = data.swagbucks_email;
-        }
-        hasLoadedInitialConfig = true;
-      }
-
-      // Header Tracker Status
-      const isRunning = data.tracker_status === 'Running';
-      const trackerStatusText = document.getElementById('trackerStatusText');
-      const headerDot = document.getElementById('headerDot');
-      if (isRunning) {
-        trackerStatusText.innerText = `${totalAccounts} Accounts Monitored`;
-        headerDot.className = 'pulse-dot';
+      if (!data.enabled) {
+        pill.className = 'status-pill unconfigured';
+        dot.className = 'pulse-dot amber';
+        txt.innerText = 'Disabled';
+      } else if (data.status === 'Configured') {
+        pill.className = 'status-pill';
+        dot.className = 'pulse-dot';
+        txt.innerText = 'Configured & Ready';
+      } else if (data.status === 'Error') {
+        pill.className = 'status-pill error';
+        dot.className = 'pulse-dot error';
+        txt.innerText = 'Error: ' + (data.last_error || 'Check Settings');
       } else {
-        trackerStatusText.innerText = 'Degraded';
-        headerDot.className = 'pulse-dot error';
+        pill.className = 'status-pill unconfigured';
+        dot.className = 'pulse-dot amber';
+        txt.innerText = 'Not Configured';
       }
+    }
 
-      // Check Now Button State
-      const spinner = document.getElementById('checkSpinner');
-      const btnText = document.getElementById('checkBtnText');
-      if (data.is_checking) {
-        spinner.style.display = 'inline-block';
-        btnText.innerText = ' Checking...';
-      } else {
-        spinner.style.display = 'none';
-        btnText.innerText = '🔄 Check Now';
-      }
+    async function saveEmailSettings() {
+      const sender = document.getElementById('cfgBotEmail').value.trim();
+      const receiver = document.getElementById('cfgReceiverEmail').value.trim();
+      const password = document.getElementById('cfgBotPassword').value;
+      const sbEmail = document.getElementById('cfgSbEmail').value.trim();
+      const host = document.getElementById('cfgSmtpHost').value.trim() || 'smtp.gmail.com';
+      const port = parseInt(document.getElementById('cfgSmtpPort').value) || 587;
+      const enabled = document.getElementById('cfgEmailEnabled').checked;
 
-      // Render Featured Section: Accounts > 530 SB
-      const aboveContainer = document.getElementById('aboveThresholdContainer');
-      const aboveAccounts = data.accounts_above_530 || [];
-      if (aboveAccounts.length === 0) {
-        aboveContainer.innerHTML = `
-          <div style="padding: 20px; text-align: center; color: var(--text-muted); grid-column: 1 / -1; font-size: 13px;">
-            No accounts currently above 530 SB. When an account crosses 530 SB, an instant mobile phone alert is sent immediately.
-          </div>
-        `;
-      } else {
-        aboveContainer.innerHTML = aboveAccounts.map(acc => `
-          <div class="threshold-card">
-            <div class="tc-header">
-              <div class="tc-email">
-                <button class="email-login-btn" onclick="handleAccountEmailClick('${acc.account_id}', '${acc.email || acc.account_id}')" title="Click to log in to Swagbucks">
-                  🔗 ${acc.email || acc.account_id}
-                </button>
-              </div>
-              <div class="tc-status-pill">Above 530 SB</div>
-            </div>
-            <div class="tc-balance-row">
-              <div class="tc-balance">${acc.current_sb ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 14px; font-weight: 600;">SB</span></div>
-              <div style="font-size: 13px; font-weight: 600; color: #34d399;">
-                ${acc.latest_change > 0 ? '+' + acc.latest_change : (acc.latest_change || 0)} SB
-              </div>
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05); flex-wrap: wrap; gap: 6px;">
-              <div style="font-size: 11px; color: #94a3b8;">
-                🕒 <strong>Checked:</strong> <span style="color: #fde68a;">${acc.last_check_time || '--'}</span> &bull; 
-                🌐 <strong>IP:</strong> <span style="color: #c084fc;">${acc.ip_used || 'Direct IP'}</span>
-              </div>
-              <div style="display: flex; gap: 6px;">
-                <button class="btn btn-sm btn-primary" style="padding: 3px 8px; font-size: 11px;" onclick="openUpdateBalanceModal('${acc.account_id}', '${acc.email || acc.account_id}', ${acc.current_sb || 0})">✏️ Update SB</button>
-                <button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="viewHistory('${acc.account_id}')">📊 History</button>
-              </div>
-            </div>
-          </div>
-        `).join('');
-      }
+      const spinner = document.getElementById('saveEmailSpinner');
+      const btnText = document.getElementById('saveEmailBtnText');
+      const banner = document.getElementById('emailTestResultBanner');
 
-      // Render All Accounts List (Mobile Card Stack matching exact requirements)
-      const allContainer = document.getElementById('allAccountsContainer');
-      if (!data.accounts || data.accounts.length === 0) {
-        allContainer.innerHTML = `
-          <div style="text-align: center; color: var(--text-dim); padding: 30px;">
-            No accounts added yet. Click <strong>"➕ Add Account"</strong> to begin tracking.
-          </div>
-        `;
+      if (!sender || !receiver) {
+        showBanner(banner, 'error', '<strong>Validation Error:</strong> Both Bot Email and Receiver Email are required.');
         return;
       }
 
-      allContainer.innerHTML = data.accounts.map(acc => {
-        const isAbove = acc.is_above_530 || (acc.current_sb !== null && acc.current_sb >= 530);
-        const status530Class = isAbove ? 'aic-badge above' : 'aic-badge below';
-        const status530Text = isAbove ? '530+ Reached' : 'Below 530';
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Saving...';
 
-        const sessionClass = 'aic-badge session-ok';
-        const sessionText = '✓ Logged In';
+      try {
+        const payload = {
+          sender_email: sender,
+          receiver_email: receiver,
+          smtp_host: host,
+          smtp_port: port,
+          enabled: enabled,
+          swagbucks_email: sbEmail || null
+        };
+        if (password) {
+          payload.sender_password = password;
+        }
 
-        const changeColor = acc.latest_change > 0 ? '#34d399' : acc.latest_change < 0 ? '#f87171' : 'var(--text-dim)';
-        const changeStr = acc.latest_change > 0 ? `+${acc.latest_change}` : `${acc.latest_change || 0}`;
-
-        const dayStartVal = acc.day_start_sb !== null && acc.day_start_sb !== undefined ? acc.day_start_sb.toLocaleString() : '--';
-        const todayGain = acc.today_change !== undefined ? (acc.today_change > 0 ? `+${acc.today_change}` : `${acc.today_change}`) : '0';
-        const todayGainColor = acc.today_change > 0 ? '#34d399' : acc.today_change < 0 ? '#f87171' : 'var(--text-dim)';
-
-        return `
-          <div class="account-item-card" style="${isAbove ? 'border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.03);' : ''}">
-            <div class="aic-top">
-              <div>
-                <div class="aic-email">
-                  <button class="email-login-btn" onclick="handleAccountEmailClick('${acc.account_id}', '${acc.email || acc.account_id}')" title="Click to log in to Swagbucks">
-                    🔗 ${acc.email || acc.account_id}
-                  </button>
-                </div>
-                <div class="aic-meta" style="margin-top: 4px; font-size: 12px; line-height: 1.5;">
-                  🕒 <strong>Last Checked:</strong> <span style="color: #fde68a; font-weight: 700;">${acc.last_check_time || 'Never'}</span><br>
-                  🌐 <strong>IP Used:</strong> <span style="color: #c084fc; font-weight: 600;">${acc.ip_used || 'Direct IP'}</span> &bull; ID: ${acc.account_id}
-                </div>
-              </div>
-              <div class="aic-badges-row">
-                <span class="${status530Class}">${status530Text}</span>
-                <span class="${sessionClass}">${sessionText}</span>
-              </div>
-            </div>
-
-            <!-- 3-Column Balance Info: 12 AM Start, Current Balance, Today's Net Change -->
-            <div class="aic-middle" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; background: rgba(255, 255, 255, 0.02); padding: 8px 10px; border-radius: 8px; margin: 10px 0;">
-              <div>
-                <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 600;">🌅 12 AM Start</div>
-                <div style="font-size: 15px; font-weight: 700; color: #60a5fa;">${dayStartVal} <span style="font-size: 11px;">SB</span></div>
-              </div>
-              <div>
-                <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Current SB</div>
-                <div class="aic-balance" style="font-size: 16px;">${acc.current_sb !== null && acc.current_sb !== undefined ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 11px; color: var(--text-muted);">SB</span></div>
-              </div>
-              <div style="text-align: right;">
-                <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Today's Gain</div>
-                <div class="aic-change" style="color: ${todayGainColor}; font-size: 14px; font-weight: 700;">Δ ${todayGain} SB</div>
-              </div>
-            </div>
-
-            <div class="aic-bottom">
-              <span class="aic-meta">Threshold: 530 SB &bull; Alert: ${isAbove ? 'Triggered / Monitored' : 'Monitoring'}</span>
-              <div class="aic-actions">
-                <button class="btn btn-sm btn-primary" style="padding: 4px 10px; font-size: 12px;" onclick="openUpdateBalanceModal('${acc.account_id}', '${acc.email || acc.account_id}', ${acc.current_sb || 0})">✏️ Update SB</button>
-                <button class="btn btn-sm" onclick="viewHistory('${acc.account_id}')">📊 History</button>
-                <button class="btn btn-danger btn-sm" onclick="deleteAccount('${acc.account_id}')">🗑️</button>
-              </div>
-            </div>
-          </div>
-        `;
-      }).join('');
+        const res = await fetch('/api/settings/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showBanner(banner, 'success', `<strong>✅ Email Settings Saved!</strong><br>${data.message || 'Configuration persisted successfully.'}`);
+          showToast('Email settings saved successfully!', 'success');
+          document.getElementById('cfgBotPassword').value = '';
+          loadEmailSettings();
+        } else {
+          showBanner(banner, 'error', `<strong>❌ Failed to save:</strong> ${data.detail || 'Unknown error'}`);
+          showToast(data.detail || 'Save failed', 'error');
+        }
+      } catch (err) {
+        showBanner(banner, 'error', `Network error: ${err.message}`);
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = '💾 Save Email Settings';
+      }
     }
 
-    // Run 530 SB Threshold Simulation
+    async function testEmailConnection() {
+      const spinner = document.getElementById('connEmailSpinner');
+      const btnText = document.getElementById('connEmailBtnText');
+      const banner = document.getElementById('emailTestResultBanner');
+
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Testing...';
+
+      try {
+        const res = await fetch('/api/email/test-connection', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showBanner(banner, 'success', `<strong>🔌 SMTP Connection Successful!</strong><br>${data.detail}<br><small style="color: #a7f3d0;">Host, port, TLS, and bot authentication verified.</small>`);
+          showToast('SMTP Connection Successful!', 'success');
+        } else {
+          showBanner(banner, 'error', `<strong>❌ Connection Failed:</strong><br>${data.detail}<br><small>Please verify bot email, app password, and SMTP host/port.</small>`);
+          showToast('SMTP Connection Failed: ' + data.detail, 'error');
+        }
+        loadEmailSettings();
+      } catch (err) {
+        showBanner(banner, 'error', `Network error during connection test: ${err.message}`);
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = '🔌 Test Connection';
+      }
+    }
+
+    async function sendTestEmail() {
+      const spinner = document.getElementById('sendEmailSpinner');
+      const btnText = document.getElementById('sendEmailBtnText');
+      const banner = document.getElementById('emailTestResultBanner');
+
+      spinner.style.display = 'inline-block';
+      btnText.innerText = ' Sending...';
+
+      try {
+        const res = await fetch('/api/email/test', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showBanner(banner, 'success', `<strong>📤 Test Email Sent Successfully!</strong><br>${data.detail}<br><small style="color: #a7f3d0;">Check your personal receiver inbox right now.</small>`);
+          showToast('Test email sent successfully!', 'success');
+        } else {
+          showBanner(banner, 'error', `<strong>❌ Email Delivery Failed:</strong><br>${data.detail}`);
+          showToast('Email delivery failed: ' + data.detail, 'error');
+        }
+        loadEmailSettings();
+      } catch (err) {
+        showBanner(banner, 'error', `Network error sending test email: ${err.message}`);
+      } finally {
+        spinner.style.display = 'none';
+        btnText.innerText = '📤 Send Test Email';
+      }
+    }
+
+    // Timer Controls (Pause / Resume / Reset)
+    async function togglePauseTimer() {
+      const btn = document.getElementById('btnPauseResumeTimer');
+      if (btn) btn.disabled = true;
+      try {
+        const isPaused = window._timerPaused === true;
+        const endpoint = isPaused ? '/api/timer/resume' : '/api/timer/pause';
+        const res = await fetch(endpoint, { method: 'POST' });
+        const data = await res.json();
+        showToast(data.message || (isPaused ? 'Timer resumed' : 'Timer paused'), 'info');
+        await fetchDashboard();
+      } catch (err) {
+        showToast('Failed to toggle timer: ' + err.message, 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    async function resetTimer() {
+      const btn = document.getElementById('btnResetTimer');
+      if (btn) btn.disabled = true;
+      try {
+        const res = await fetch('/api/timer/reset', { method: 'POST' });
+        const data = await res.json();
+        showToast(data.message || 'Timer reset to initial interval', 'info');
+        await fetchDashboard();
+      } catch (err) {
+        showToast('Failed to reset timer: ' + err.message, 'error');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }
+
+    // Threshold Simulator
+    function toggleThresholdSimulator() {
+      const panel = document.getElementById('panelThresholdSimulator');
+      if (panel) {
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        const res = document.getElementById('simResultBox');
+        if (res) res.style.display = 'none';
+      }
+    }
+
     async function runThresholdSimulation() {
       const prev = parseInt(document.getElementById('simPrevSb').value);
       const curr = parseInt(document.getElementById('simCurrSb').value);
@@ -1721,7 +1831,7 @@
         resBox.style.display = 'block';
         resBox.style.background = 'rgba(239, 68, 68, 0.15)';
         resBox.style.color = '#f87171';
-        resBox.innerHTML = 'Network error during threshold test: ' + err;
+        resBox.innerHTML = 'Network error during threshold test: ' + err.message;
       } finally {
         spinner.style.display = 'none';
         btnText.innerText = 'Verify 530 SB Alert';
@@ -1730,6 +1840,7 @@
     }
 
     function showBanner(bannerEl, type, html) {
+      if (!bannerEl) return;
       bannerEl.style.display = 'block';
       if (type === 'success') {
         bannerEl.style.background = 'rgba(16, 185, 129, 0.15)';
@@ -1743,21 +1854,423 @@
       bannerEl.innerHTML = html;
     }
 
-    // Manual check trigger
+    // Manual Check Trigger
     async function triggerManualCheck() {
+      const btn = document.getElementById('btnCheckNow');
       const spinner = document.getElementById('checkSpinner');
       const btnText = document.getElementById('checkBtnText');
-      spinner.style.display = 'inline-block';
-      btnText.innerText = ' Checking...';
+
+      if (btn && btn.disabled) return;
+      if (btn) btn.disabled = true;
+      if (spinner) spinner.style.display = 'inline-block';
+      if (btnText) btnText.innerText = ' Starting Check...';
+
       try {
-        await fetch('/api/check-now', { method: 'POST' });
+        const res = await fetch('/api/check-now', { method: 'POST' });
+        const data = await res.json();
+        if (res.status === 409) {
+          showToast(data.detail || data.message || 'Check is already running. Please wait for current cycle to complete.', 'warning');
+        } else if (res.ok) {
+          window._manualCheckTriggered = true;
+          showToast('Account balance check initiated!', 'info');
+        } else {
+          showToast('Failed to trigger check: ' + (data.detail || data.message || 'Error'), 'error');
+        }
         await fetchDashboard();
       } catch (e) {
-        console.error(e);
-      } finally {
-        spinner.style.display = 'none';
-        btnText.innerText = '🔄 Check Now';
+        console.error('Trigger manual check error:', e);
+        showToast('Network error triggering check: ' + e.message, 'error');
       }
+    }
+
+    // Timestamp & Countdown Formatting
+    function formatExactTimestamp(rawTs) {
+      if (!rawTs || rawTs === 'Never' || rawTs === '--') {
+        return 'Never';
+      }
+      try {
+        const parts = rawTs.trim().split(' ');
+        if (parts.length === 2) {
+          const datePart = parts[0];
+          const timePart = parts[1];
+          const tPieces = timePart.split(':');
+          if (tPieces.length >= 2) {
+            const h = parseInt(tPieces[0], 10);
+            const m = tPieces[1];
+            const s = tPieces[2] || '00';
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            const h12Pad = String(h12).padStart(2, '0');
+            return `${datePart} ${timePart} • ${h12Pad}:${m}:${s} ${ampm}`;
+          }
+        }
+      } catch(e) {}
+      return rawTs;
+    }
+
+    function formatSeconds(sec) {
+      if (!sec || sec <= 0) return '00h 00m 00s';
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = sec % 60;
+      return `${String(h).padStart(2, '0')}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+    }
+
+    function updateCountdownUI() {
+      const sec = (window._activeCountdownSec !== undefined && window._activeCountdownSec > 0) 
+        ? window._activeCountdownSec 
+        : 0;
+      let formatted = formatSeconds(sec);
+      if (window._timerPaused) {
+        formatted += ' (Paused)';
+      }
+      const bannerCountdown = document.getElementById('bannerCountdown');
+      const kpiCountdown = document.getElementById('kpiCountdown');
+      if (bannerCountdown) bannerCountdown.innerText = formatted;
+      if (kpiCountdown) kpiCountdown.innerText = formatted;
+    }
+
+    // Countdown 1-second ticker loop
+    if (!window._countdownTimerInterval) {
+      window._countdownTimerInterval = setInterval(() => {
+        if (!window._timerPaused && window._activeCountdownSec > 0) {
+          window._activeCountdownSec--;
+        }
+        updateCountdownUI();
+      }, 1000);
+    }
+
+    // Dashboard Polling and Rendering
+    async function fetchDashboard() {
+      try {
+        const res = await fetch('/api/dashboard');
+        if (!res.ok) return;
+        const data = await res.json();
+        renderDashboard(data);
+      } catch (err) {
+        console.error("Dashboard poll error:", err);
+      }
+    }
+
+    function renderDashboard(data) {
+      // 1. KPI 1: TOTAL ACCOUNTS
+      const totalAccounts = data.total_accounts !== undefined ? data.total_accounts : (data.accounts ? data.accounts.length : 0);
+      document.getElementById('kpiTotalAccounts').innerText = totalAccounts;
+      document.getElementById('kpiAccountsSub').innerText = `${totalAccounts} tracked in database`;
+
+      // 2. KPI 2: ACCOUNTS ABOVE 530 SB
+      const countAbove530 = data.count_above_530 || 0;
+      document.getElementById('kpiCountAbove530').innerText = countAbove530;
+      document.getElementById('badgeAbove530Count').innerText = `${countAbove530} Accounts`;
+      document.getElementById('kpiAbove530Sub').innerText = countAbove530 > 0 ? `${countAbove530} accounts ready` : 'No accounts currently > 530';
+
+      // 3. KPI 3: ALERT THRESHOLD
+      document.getElementById('kpiThresholdValue').innerText = `${data.threshold || 530} SB`;
+
+      // 4. KPI 4: MOBILE PHONE ALERT Status
+      const isMobileEnabled = data.mobile_alerts_enabled !== false;
+      const kpiMobileAlertEl = document.getElementById('kpiMobileAlertStatus');
+      const kpiMobileSubEl = document.getElementById('kpiMobileAlertSub');
+      const badgeMobilePill = document.getElementById('badgeMobileStatusPill');
+      const dotMobile = document.getElementById('dotMobileStatus');
+      const textMobileBadge = document.getElementById('textMobileStatusBadge');
+
+      if (isMobileEnabled) {
+        if (kpiMobileAlertEl) {
+          kpiMobileAlertEl.innerText = 'Active';
+          kpiMobileAlertEl.style.color = '#34d399';
+        }
+        if (kpiMobileSubEl) kpiMobileSubEl.innerText = `Topic: ${data.mobile_push_topic || 'sb_alerts_9676061877'}`;
+        if (badgeMobilePill) badgeMobilePill.className = 'status-pill';
+        if (dotMobile) dotMobile.className = 'pulse-dot';
+        if (textMobileBadge) textMobileBadge.innerText = 'Active & Ready';
+      } else {
+        if (kpiMobileAlertEl) {
+          kpiMobileAlertEl.innerText = 'Disabled';
+          kpiMobileAlertEl.style.color = '#fbbf24';
+        }
+        if (kpiMobileSubEl) kpiMobileSubEl.innerText = 'Tap to enable';
+        if (badgeMobilePill) badgeMobilePill.className = 'status-pill unconfigured';
+        if (dotMobile) dotMobile.className = 'pulse-dot amber';
+        if (textMobileBadge) textMobileBadge.innerText = 'Disabled';
+      }
+
+      // 5. KPI 5 & Headers: LAST CHECKED TIME
+      const rawLastCheck = data.last_check_time || data.last_successful_check;
+      const exactCheckTimeFormatted = formatExactTimestamp(rawLastCheck);
+
+      const kpiLastCheckEl = document.getElementById('kpiLastChecked');
+      const kpiLastCheckSubEl = document.getElementById('kpiLastCheckedSub');
+      const headerLastCheckEl = document.getElementById('headerLastCheckedTime');
+      const lblMobileLastCheckEl = document.getElementById('lblMobileLastCheck');
+      if (kpiLastCheckEl) kpiLastCheckEl.innerText = rawLastCheck || 'Never';
+      if (headerLastCheckEl) headerLastCheckEl.innerText = exactCheckTimeFormatted;
+      if (lblMobileLastCheckEl) lblMobileLastCheckEl.innerText = exactCheckTimeFormatted;
+      if (kpiLastCheckSubEl) kpiLastCheckSubEl.innerText = `${data.target_check_time || '1h Cycle'}`;
+
+      // 6. TIMER PAUSE STATE & COUNTDOWN SYNC
+      window._timerPaused = data.timer_paused === true;
+      const btnPauseTimer = document.getElementById('btnPauseResumeTimer');
+      if (btnPauseTimer) {
+        if (window._timerPaused) {
+          btnPauseTimer.innerText = '▶️ Resume';
+          btnPauseTimer.className = 'btn btn-sm btn-success';
+        } else {
+          btnPauseTimer.innerText = '⏸️ Pause';
+          btnPauseTimer.className = 'btn btn-sm';
+        }
+      }
+
+      if (data.countdown_seconds !== undefined && data.countdown_seconds !== null) {
+        window._activeCountdownSec = data.countdown_seconds;
+      }
+      updateCountdownUI();
+
+      const bannerTarget = document.getElementById('bannerTargetTime');
+      const bannerNextCheck = document.getElementById('bannerNextCheckTime');
+      if (bannerTarget) bannerTarget.innerText = `${data.target_check_time || 'Every 1 Hour'} (${data.interval_seconds ? data.interval_seconds + 's' : '3,600s'} Cycle)`;
+      if (bannerNextCheck) {
+        bannerNextCheck.innerText = data.next_scheduled_check 
+          ? formatExactTimestamp(data.next_scheduled_check)
+          : '--';
+      }
+
+      // 7. CHECK NOW BUTTON STATUS & RESULT COMPARISON FEEDBACK
+      const btnCheck = document.getElementById('btnCheckNow');
+      const spinnerCheck = document.getElementById('checkSpinner');
+      const btnCheckText = document.getElementById('checkBtnText');
+      if (data.is_checking) {
+        if (btnCheck) btnCheck.disabled = true;
+        if (spinnerCheck) spinnerCheck.style.display = 'inline-block';
+        if (btnCheckText) {
+          btnCheckText.innerText = data.checking_state === 'gap' 
+            ? ` ⏳ Delay: ${data.gap_remaining || 0}s...` 
+            : ' Checking...';
+        }
+      } else {
+        if (btnCheck) btnCheck.disabled = false;
+        if (spinnerCheck) spinnerCheck.style.display = 'none';
+        if (btnCheckText) btnCheckText.innerText = '🔄 Check Now';
+
+        // Check Now has finished: display comparison feedback
+        if (window._manualCheckTriggered) {
+          window._manualCheckTriggered = false;
+          if (data.last_check_has_changes) {
+            showToast(data.last_check_summary || 'Swagbucks updated!', 'success');
+          } else {
+            showToast('Swagbucks are the same — no change detected.', 'info');
+          }
+        }
+      }
+
+      // Persistent Comparison Result Banner
+      const compBanner = document.getElementById('checkComparisonBanner');
+      const compText = document.getElementById('checkComparisonText');
+      if (compBanner && compText) {
+        if (data.last_check_summary) {
+          compBanner.style.display = 'flex';
+          if (data.last_check_has_changes) {
+            compBanner.style.background = 'rgba(16, 185, 129, 0.15)';
+            compBanner.style.border = '1px solid rgba(16, 185, 129, 0.4)';
+            compBanner.style.color = '#34d399';
+            compText.innerHTML = `📈 <strong>${data.last_check_summary}</strong> &bull; <small style="color: #a7f3d0;">Checked: ${exactCheckTimeFormatted}</small>`;
+          } else {
+            compBanner.style.background = 'rgba(59, 130, 246, 0.15)';
+            compBanner.style.border = '1px solid rgba(59, 130, 246, 0.4)';
+            compBanner.style.color = '#93c5fd';
+            compText.innerHTML = `ℹ️ <strong>Swagbucks are the same — no change detected.</strong> &bull; <small style="color: #bfdbfe;">Checked: ${exactCheckTimeFormatted}</small>`;
+          }
+        } else {
+          compBanner.style.display = 'none';
+        }
+      }
+
+      // 8. LIVE ANTI-BOT PROGRESS CARD
+      const liveProgressCard = document.getElementById('liveProgressCard');
+      if (liveProgressCard) {
+        if (data.is_checking) {
+          liveProgressCard.style.display = 'block';
+          const titleEl = document.getElementById('liveProgressTitle');
+          const indexEl = document.getElementById('liveProgressIndex');
+          const detailEl = document.getElementById('liveProgressDetail');
+          const barEl = document.getElementById('liveProgressBar');
+
+          const curIdx = data.checking_index || 1;
+          const totAcc = data.checking_total || (data.accounts ? data.accounts.length : 1);
+          if (indexEl) indexEl.innerText = `Account ${curIdx}/${totAcc}`;
+
+          const pct = totAcc > 0 ? Math.round((curIdx / totAcc) * 100) : 50;
+          if (barEl) barEl.style.width = `${pct}%`;
+
+          if (data.checking_state === 'gap') {
+            if (titleEl) titleEl.innerText = `⏳ Anti-Bot Delay: Waiting ${data.gap_remaining || 0}s...`;
+            if (detailEl) detailEl.innerHTML = `🛡️ <strong>Anti-bot gap between accounts active:</strong> Finished checking <em>${data.current_checking_account}</em>. Pausing before checking <em>${data.next_account_id || 'next account'}</em> to protect accounts.`;
+          } else {
+            if (titleEl) titleEl.innerText = `🔄 Fetching: ${data.current_checking_account || 'Checking account'}...`;
+            if (detailEl) detailEl.innerHTML = `🌐 Using Rotating IP: <strong style="color: #38bdf8;">${data.checking_ip || 'Proxy/Direct IP'}</strong> &bull; Querying live balance safely`;
+          }
+        } else {
+          liveProgressCard.style.display = 'none';
+        }
+      }
+
+      // 9. HEADER TRACKER STATUS BADGE
+      const isRunning = data.tracker_status === 'Running';
+      const trackerStatusText = document.getElementById('trackerStatusText');
+      const headerDot = document.getElementById('headerDot');
+      if (isRunning) {
+        trackerStatusText.innerText = `${totalAccounts} Accounts Monitored`;
+        headerDot.className = 'pulse-dot';
+      } else {
+        trackerStatusText.innerText = 'Degraded';
+        headerDot.className = 'pulse-dot error';
+      }
+
+      // 10. ALERTS CONTAINER (Warnings for expired sessions / errors)
+      const alertsContainer = document.getElementById('alertsContainer');
+      if (alertsContainer && data.accounts) {
+        const expiredAccs = data.accounts.filter(a => a.is_session_expired || a.display_status === 'Session Expired');
+        if (expiredAccs.length > 0) {
+          alertsContainer.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+              <div style="color: #fca5a5; font-size: 13px;">
+                <strong>⚠️ Action Required:</strong> ${expiredAccs.length} account session(s) expired: 
+                <strong>${expiredAccs.map(a => a.email || a.account_id).join(', ')}</strong>. Re-connect credentials to resume automated tracking.
+              </div>
+              <button class="btn btn-sm btn-primary" onclick="openAddAccountModal()">Re-Connect Account</button>
+            </div>
+          `;
+        } else {
+          alertsContainer.innerHTML = '';
+        }
+      }
+
+      // 11. RENDER FEATURED SECTION: ACCOUNTS >= 530 SB
+      const aboveContainer = document.getElementById('aboveThresholdContainer');
+      const aboveAccounts = data.accounts_above_530 || [];
+      if (aboveAccounts.length === 0) {
+        aboveContainer.innerHTML = `
+          <div style="padding: 20px; text-align: center; color: var(--text-muted); grid-column: 1 / -1; font-size: 13px;">
+            No accounts currently at or above ${data.threshold || 530} SB. When an account crosses ${data.threshold || 530} SB, instant alerts fire immediately to your phone and email.
+          </div>
+        `;
+      } else {
+        aboveContainer.innerHTML = aboveAccounts.map(acc => `
+          <div class="threshold-card">
+            <div class="tc-header">
+              <div class="tc-email">
+                <button class="email-login-btn" onclick="handleAccountEmailClick('${acc.account_id}', '${acc.email || acc.account_id}')" title="Click to log in to Swagbucks">
+                  🔗 ${acc.email || acc.account_id}
+                </button>
+              </div>
+              <div class="tc-status-pill">Above ${data.threshold || 530} SB</div>
+            </div>
+            <div class="tc-balance-row">
+              <div class="tc-balance">${acc.current_sb !== null && acc.current_sb !== undefined ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 14px; font-weight: 600;">SB</span></div>
+              <div style="font-size: 13px; font-weight: 600; color: #34d399;">
+                ${acc.latest_change > 0 ? '+' + acc.latest_change : (acc.latest_change || 0)} SB
+              </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255, 255, 255, 0.05); flex-wrap: wrap; gap: 6px;">
+              <div style="font-size: 11px; color: #94a3b8;">
+                🕒 <strong>Checked:</strong> <span style="color: #fde68a;">${acc.last_check_time || 'Never'}</span> &bull; 
+                🌐 <strong>IP:</strong> <span style="color: #c084fc;">${acc.ip_used || 'Direct IP'}</span>
+              </div>
+              <div style="display: flex; gap: 6px;">
+                <button class="btn btn-sm btn-primary" style="padding: 3px 8px; font-size: 11px;" onclick="openUpdateBalanceModal('${acc.account_id}', '${acc.email || acc.account_id}', ${acc.current_sb || 0})">✏️ Update SB</button>
+                <button class="btn btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="viewHistory('${acc.account_id}')">📊 History</button>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // 12. RENDER ALL MONITORED ACCOUNTS LIST (With real statuses and error details)
+      const allContainer = document.getElementById('allAccountsContainer');
+      if (!data.accounts || data.accounts.length === 0) {
+        allContainer.innerHTML = `
+          <div style="text-align: center; color: var(--text-dim); padding: 30px;">
+            No accounts added yet. Click <strong>"➕ Add Account"</strong> to begin tracking.
+          </div>
+        `;
+        return;
+      }
+
+      allContainer.innerHTML = data.accounts.map(acc => {
+        const threshold = data.threshold || 530;
+        const isAbove = acc.is_above_530 || (acc.current_sb !== null && acc.current_sb >= threshold);
+        const status530Class = isAbove ? 'aic-badge above' : 'aic-badge below';
+        const status530Text = isAbove ? `${threshold}+ Reached` : `Below ${threshold}`;
+
+        let sessionClass = 'aic-badge session-ok';
+        let sessionText = '✓ Logged In';
+
+        if (acc.display_status === 'Session Expired' || acc.is_session_expired) {
+          sessionClass = 'aic-badge session-expired';
+          sessionText = '⚠️ Session Expired';
+        } else if (acc.display_status === 'Blocked') {
+          sessionClass = 'aic-badge session-blocked';
+          sessionText = '⛔ Blocked';
+        } else if (acc.display_status === 'Error') {
+          sessionClass = 'aic-badge session-error';
+          sessionText = '❌ Check Error';
+        }
+
+        const changeColor = acc.latest_change > 0 ? '#34d399' : acc.latest_change < 0 ? '#f87171' : 'var(--text-dim)';
+        const changeStr = acc.latest_change > 0 ? `+${acc.latest_change}` : `${acc.latest_change || 0}`;
+
+        const dayStartVal = acc.day_start_sb !== null && acc.day_start_sb !== undefined ? acc.day_start_sb.toLocaleString() : '--';
+        const todayGain = acc.today_change !== undefined ? (acc.today_change > 0 ? `+${acc.today_change}` : `${acc.today_change}`) : '0';
+        const todayGainColor = acc.today_change > 0 ? '#34d399' : acc.today_change < 0 ? '#f87171' : 'var(--text-dim)';
+
+        return `
+          <div class="account-item-card" style="${isAbove ? 'border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.03);' : ''}">
+            <div class="aic-top">
+              <div>
+                <div class="aic-email">
+                  <button class="email-login-btn" onclick="handleAccountEmailClick('${acc.account_id}', '${acc.email || acc.account_id}')" title="Click to log in to Swagbucks">
+                    🔗 ${acc.email || acc.account_id}
+                  </button>
+                </div>
+                <div class="aic-meta" style="margin-top: 4px; font-size: 12px; line-height: 1.5;">
+                  🕒 <strong>Last Checked:</strong> <span style="color: #fde68a; font-weight: 700;">${acc.last_check_time || 'Never'}</span><br>
+                  🌐 <strong>IP Used:</strong> <span style="color: #c084fc; font-weight: 600;">${acc.ip_used || 'Direct IP'}</span> &bull; ID: ${acc.account_id}
+                </div>
+                ${acc.error_reason ? `<div style="font-size: 11px; color: #f87171; margin-top: 4px; background: rgba(239, 68, 68, 0.1); padding: 4px 8px; border-radius: 4px;">⚠️ ${acc.error_reason}</div>` : ''}
+              </div>
+              <div class="aic-badges-row">
+                <span class="${status530Class}">${status530Text}</span>
+                <span class="${sessionClass}">${sessionText}</span>
+              </div>
+            </div>
+
+            <!-- 3-Column Balance Info -->
+            <div class="aic-middle" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; background: rgba(255, 255, 255, 0.02); padding: 8px 10px; border-radius: 8px; margin: 10px 0;">
+              <div>
+                <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 600;">🌅 12 AM Start</div>
+                <div style="font-size: 15px; font-weight: 700; color: #60a5fa;">${dayStartVal} <span style="font-size: 11px;">SB</span></div>
+              </div>
+              <div>
+                <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Current SB</div>
+                <div class="aic-balance" style="font-size: 16px;">${acc.current_sb !== null && acc.current_sb !== undefined ? acc.current_sb.toLocaleString() : '--'} <span style="font-size: 11px; color: var(--text-muted);">SB</span></div>
+              </div>
+              <div style="text-align: right;">
+                <div style="font-size: 10px; color: var(--text-dim); text-transform: uppercase; font-weight: 600;">Today's Gain</div>
+                <div class="aic-change" style="color: ${todayGainColor}; font-size: 14px; font-weight: 700;">Δ ${todayGain} SB</div>
+              </div>
+            </div>
+
+            <div class="aic-bottom">
+              <span class="aic-meta">Threshold: ${threshold} SB &bull; Alert: ${isAbove ? 'Triggered' : 'Monitoring'}</span>
+              <div class="aic-actions">
+                <button class="btn btn-sm btn-primary" style="padding: 4px 10px; font-size: 12px;" onclick="openUpdateBalanceModal('${acc.account_id}', '${acc.email || acc.account_id}', ${acc.current_sb || 0})">✏️ Update SB</button>
+                <button class="btn btn-sm" onclick="viewHistory('${acc.account_id}')">📊 History</button>
+                <button class="btn btn-danger btn-sm" onclick="deleteAccount('${acc.account_id}')">🗑️</button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     // Account Management
@@ -1768,7 +2281,7 @@
       document.getElementById('addAccountModal').classList.remove('active');
     }
 
-    // Update SB Balance Modal Handlers
+    // Update SB Balance Modal
     function openUpdateBalanceModal(accId, email, currentSb) {
       document.getElementById('updateAccId').value = accId;
       document.getElementById('updateAccEmail').value = email || accId;
@@ -1821,6 +2334,7 @@
         });
         const result = await res.json();
         if (result.success) {
+          showToast(`Balance updated to ${sbVal} SB!`, 'success');
           closeUpdateBalanceModal();
           await fetchDashboard();
         } else {
@@ -1875,6 +2389,7 @@
         }
 
         if (data.success && data.status === 'logged_in') {
+          showToast(`Account '${email}' connected successfully!`, 'success');
           closeAddAccountModal();
           fetchDashboard();
         } else {
@@ -1896,20 +2411,35 @@
 
     async function deleteAccount(accId) {
       if (!confirm(`Are you sure you want to remove account '${accId}'?`)) return;
-      await fetch(`/api/accounts/${accId}/delete`, { method: 'POST' });
-      fetchDashboard();
+      try {
+        const res = await fetch(`/api/accounts/${accId}/delete`, { method: 'POST' });
+        if (res.ok) {
+          showToast(`Account '${accId}' removed`, 'info');
+        }
+        fetchDashboard();
+      } catch (e) {
+        showToast('Error removing account: ' + e.message, 'error');
+      }
     }
 
-    // Tracker Settings
+    // General Tracker Settings
     async function openSettingsModal() {
       document.getElementById('settingsModal').classList.add('active');
+      const statusMsg = document.getElementById('settingsStatusMsg');
+      if (statusMsg) statusMsg.style.display = 'none';
+
       try {
-        const res = await fetch('/api/dashboard');
-        const data = await res.json();
-        if (data.interval_seconds) document.getElementById('settingInterval').value = data.interval_seconds;
-        if (data.target_check_time) document.getElementById('settingTargetTime').value = data.target_check_time;
-        if (data.headless !== undefined) document.getElementById('settingHeadless').checked = data.headless;
-        if (data.proxy_rotation_enabled !== undefined) document.getElementById('settingProxyRotation').checked = data.proxy_rotation_enabled;
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.interval_seconds !== undefined) document.getElementById('settingInterval').value = data.interval_seconds;
+          if (data.target_time) document.getElementById('settingTargetTime').value = data.target_time;
+          if (data.threshold !== undefined) document.getElementById('settingThreshold').value = data.threshold;
+          if (data.gap_min_seconds !== undefined) document.getElementById('settingGapMin').value = data.gap_min_seconds;
+          if (data.gap_max_seconds !== undefined) document.getElementById('settingGapMax').value = data.gap_max_seconds;
+          if (data.headless !== undefined) document.getElementById('settingHeadless').checked = data.headless;
+          if (data.use_proxy_rotation !== undefined) document.getElementById('settingProxyRotation').checked = data.use_proxy_rotation;
+        }
 
         const proxyRes = await fetch('/api/proxies');
         const proxyData = await proxyRes.json();
@@ -1917,47 +2447,74 @@
         if (lblIp && proxyData.current_direct_ip) lblIp.innerText = proxyData.current_direct_ip;
         if (proxyData.proxies) {
           document.getElementById('settingProxyList').value = proxyData.proxies.join('\n');
+        } else {
+          document.getElementById('settingProxyList').value = '';
         }
       } catch (e) {
         console.error('Error fetching settings:', e);
       }
     }
+
     function closeSettingsModal() {
       document.getElementById('settingsModal').classList.remove('active');
     }
+
     async function saveSettings() {
-      const interval = parseInt(document.getElementById('settingInterval').value) || 18000;
-      const targetTime = document.getElementById('settingTargetTime').value.trim() || 'Every 5 Hours';
-      const gapMin = parseInt(document.getElementById('settingGapMin').value) || 120;
-      const gapMax = parseInt(document.getElementById('settingGapMax').value) || 180;
+      const interval = parseInt(document.getElementById('settingInterval').value) || 3600;
+      const targetTime = document.getElementById('settingTargetTime').value.trim() || 'Every 1 Hour';
+      const threshold = parseInt(document.getElementById('settingThreshold').value) || 530;
+      const gapMin = parseInt(document.getElementById('settingGapMin').value) || 5;
+      const gapMax = parseInt(document.getElementById('settingGapMax').value) || 15;
       const proxyRotation = document.getElementById('settingProxyRotation').checked;
       const headless = document.getElementById('settingHeadless').checked;
       const proxyListRaw = document.getElementById('settingProxyList').value;
       const proxyList = proxyListRaw.split('\n').map(p => p.trim()).filter(p => p && !p.startsWith('#'));
 
-      await fetch('/api/settings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          interval_seconds: interval,
-          target_time: targetTime,
-          gap_min_seconds: gapMin,
-          gap_max_seconds: gapMax,
-          use_proxy_rotation: proxyRotation,
-          headless: headless
-        })
-      });
+      const statusMsg = document.getElementById('settingsStatusMsg');
 
-      if (proxyList.length > 0) {
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            interval_seconds: interval,
+            target_time: targetTime,
+            threshold: threshold,
+            gap_min_seconds: gapMin,
+            gap_max_seconds: gapMax,
+            use_proxy_rotation: proxyRotation,
+            headless: headless
+          })
+        });
+
+        // Always save proxy list (supports clearing all proxies)
         await fetch('/api/proxies', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ proxies: proxyList })
         });
-      }
 
-      closeSettingsModal();
-      fetchDashboard();
+        if (res.ok) {
+          showToast('Settings saved successfully!', 'success');
+          closeSettingsModal();
+          fetchDashboard();
+        } else {
+          const err = await res.json();
+          if (statusMsg) {
+            statusMsg.style.display = 'block';
+            statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+            statusMsg.style.color = '#f87171';
+            statusMsg.innerText = err.detail || 'Failed to save settings.';
+          }
+        }
+      } catch (err) {
+        if (statusMsg) {
+          statusMsg.style.display = 'block';
+          statusMsg.style.background = 'rgba(239, 68, 68, 0.15)';
+          statusMsg.style.color = '#f87171';
+          statusMsg.innerText = 'Network error: ' + err.message;
+        }
+      }
     }
 
     // History Modal
@@ -1999,14 +2556,17 @@
           }
         });
       } catch (e) {
-        console.error(e);
+        console.error('History fetch error:', e);
       }
     }
+
     function closeHistoryModal() {
       document.getElementById('historyModal').classList.remove('active');
     }
 
-    // Auto-poll every 2 seconds
+    // Initial load
+    loadMobileSettings();
+    loadEmailSettings();
     fetchDashboard();
     setInterval(fetchDashboard, 2000);
   </script>

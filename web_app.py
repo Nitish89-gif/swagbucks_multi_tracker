@@ -5,6 +5,7 @@ Built with FastAPI, Playwright Async, and SQLite.
 """
 
 import asyncio
+from contextlib import asynccontextmanager
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -144,10 +145,17 @@ init_diff, init_target_str = get_seconds_to_next_run(Config.CHECK_INTERVAL_SECON
 monitor_state: Dict[str, Any] = {
     "interval_seconds": Config.CHECK_INTERVAL_SECONDS,
     "countdown_seconds": init_diff,
-    "target_time": "Every 5 Hours",
+    "target_time": Config.TARGET_CHECK_TIME or "Every 1 Hour",
     "next_scheduled_check": init_target_str,
     "is_checking": False,
     "checking_state": "idle",
+    "timer_paused": False,
+    "last_check_status": "idle",
+    "last_check_message": "Idle - waiting for scheduled check",
+    "last_check_summary": None,
+    "last_check_has_changes": False,
+    "accounts_checked": 0,
+    "accounts_failed": 0,
     "current_checking_account": None,
     "checking_index": 0,
     "checking_total": 0,
@@ -185,12 +193,13 @@ class SyncAccountsRequest(BaseModel):
 
 
 class SettingsRequest(BaseModel):
-    interval_seconds: Optional[int] = 18000
-    target_time: Optional[str] = "Every 5 Hours"
+    interval_seconds: Optional[int] = 3600
+    target_time: Optional[str] = "Every 1 Hour"
+    threshold: Optional[int] = 530
     headless: Optional[bool] = True
-    use_proxy_rotation: Optional[bool] = True
-    gap_min_seconds: Optional[int] = 120
-    gap_max_seconds: Optional[int] = 180
+    use_proxy_rotation: Optional[bool] = False
+    gap_min_seconds: Optional[int] = 5
+    gap_max_seconds: Optional[int] = 15
 
 
 class EmailSettingsRequest(BaseModel):
@@ -215,22 +224,42 @@ class MobileSettingsRequest(BaseModel):
 
 
 async def background_monitoring_worker():
-    """Background asynchronous task that manages 5h polling with anti-bot gaps and IP rotation."""
+    """Background asynchronous task that manages interval polling with anti-bot gaps and IP rotation."""
     while True:
         try:
             # 1. Countdown until next check (interval) or until manual trigger
             while monitor_state["countdown_seconds"] > 0:
                 await asyncio.sleep(1)
-                monitor_state["countdown_seconds"] = max(0, monitor_state["countdown_seconds"] - 1)
+                if not monitor_state.get("timer_paused", False):
+                    monitor_state["countdown_seconds"] = max(0, monitor_state["countdown_seconds"] - 1)
                 if monitor_state.get("trigger_event") and monitor_state["trigger_event"].is_set():
                     monitor_state["trigger_event"].clear()
                     break
 
-            # 2. Fetch all accounts with staggered anti-bot gap and IP rotation
+            # If timer paused and no manual trigger, idle
+            if monitor_state.get("timer_paused", False):
+                if not (monitor_state.get("trigger_event") and monitor_state["trigger_event"].is_set()):
+                    await asyncio.sleep(1)
+                    continue
+                else:
+                    monitor_state["trigger_event"].clear()
+
+            # 2. Fetch all accounts with staggered anti-bot gap
             accounts = list_saved_accounts()
             if accounts:
+                from database import get_latest_record, get_last_successful_check_overall
+                # Snapshot previous SB balances before checking
+                prev_balances = {}
+                for acc_id in accounts:
+                    rec = get_latest_record(acc_id)
+                    prev_balances[acc_id] = rec["sb_balance"] if (rec and rec["sb_balance"] is not None) else 0
+
                 monitor_state["is_checking"] = True
                 monitor_state["checking_state"] = "checking"
+                monitor_state["last_check_status"] = "checking"
+                monitor_state["last_check_message"] = f"Checking balances for {len(accounts)} accounts..."
+                monitor_state["accounts_checked"] = 0
+                monitor_state["accounts_failed"] = 0
 
                 async def progress_hook(p_data: Dict[str, Any]):
                     monitor_state["checking_state"] = p_data.get("state", "checking")
@@ -244,24 +273,75 @@ async def background_monitoring_worker():
                     monitor_state["batch_num"] = p_data.get("batch_num", 1)
                     monitor_state["pos_in_batch"] = p_data.get("pos_in_batch", 1)
                     monitor_state["batch_size"] = p_data.get("batch_size", 3)
+                    if p_data.get("state") == "account_finished":
+                        monitor_state["accounts_checked"] = p_data.get("index", 0)
 
                 try:
-                    await monitor_accounts_simultaneously(
+                    results = await monitor_accounts_simultaneously(
                         accounts,
                         headless=monitor_state["headless"],
                         progress_callback=progress_hook,
+                        min_gap_seconds=Config.ACCOUNT_FETCH_GAP_MIN_SECONDS,
+                        max_gap_seconds=Config.ACCOUNT_FETCH_GAP_MAX_SECONDS,
                     )
-                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    monitor_state["last_check_time"] = now_str
+
+                    # Compute balance comparisons
+                    changes_detected = []
+                    total_delta = 0
+                    success_count = 0
+                    for r in results:
+                        if r.get("status") == "Logged In":
+                            success_count += 1
+                            acc_id = r.get("account_id")
+                            new_sb = r.get("current_sb", 0)
+                            old_sb = prev_balances.get(acc_id, new_sb)
+                            delta = new_sb - old_sb
+                            total_delta += delta
+                            if delta != 0:
+                                sign = "+" if delta > 0 else ""
+                                changes_detected.append(f"{acc_id}: {sign}{delta} SB")
+
+                    if success_count > 0:
+                        if total_delta == 0 and len(changes_detected) == 0:
+                            summary_msg = "Swagbucks are the same — no change detected."
+                            has_changes = False
+                        else:
+                            sign = "+" if total_delta > 0 else ""
+                            summary_msg = f"Swagbucks updated ({sign}{total_delta} SB total): {', '.join(changes_detected)}"
+                            has_changes = True
+                    else:
+                        summary_msg = "Check completed with errors — no balances updated."
+                        has_changes = False
+
+                    monitor_state["last_check_summary"] = summary_msg
+                    monitor_state["last_check_has_changes"] = has_changes
+
+                    # Strictly update last_check_time to the latest successful check timestamp
+                    last_success_ts = get_last_successful_check_overall()
+                    monitor_state["last_check_time"] = last_success_ts or "Never"
+
+                    failed_count = sum(1 for r in results if r.get("status") in ("ERROR", "BLOCKED", "SESSION EXPIRED"))
+                    monitor_state["accounts_failed"] = failed_count
+                    if failed_count == 0:
+                        monitor_state["last_check_status"] = "success"
+                        monitor_state["last_check_message"] = summary_msg
+                    else:
+                        monitor_state["last_check_status"] = "partial"
+                        monitor_state["last_check_message"] = f"{summary_msg} ({failed_count} failure(s))"
                 except Exception as e:
                     print(f"[!] Error in background check: {e}")
+                    monitor_state["last_check_status"] = "error"
+                    monitor_state["last_check_message"] = f"Check failed: {str(e)}"
                 finally:
                     monitor_state["is_checking"] = False
                     monitor_state["checking_state"] = "idle"
                     monitor_state["gap_remaining"] = 0
                     monitor_state["current_checking_account"] = None
+            else:
+                monitor_state["last_check_status"] = "idle"
+                monitor_state["last_check_message"] = "No registered accounts found."
 
-            # 3. Schedule next 5-hour run
+            # 3. Schedule next interval run
             curr_interval = monitor_state.get("interval_seconds") or getattr(Config, "CHECK_INTERVAL_SECONDS", 18000)
             next_diff, next_target_str = get_seconds_to_next_run(curr_interval)
             monitor_state["countdown_seconds"] = next_diff
@@ -271,7 +351,18 @@ async def background_monitoring_worker():
             break
         except Exception as e:
             print(f"[!] Unexpected error in monitor loop: {e}")
+            monitor_state["is_checking"] = False
+            monitor_state["checking_state"] = "idle"
             await asyncio.sleep(5)
+
+
+def ensure_worker_running():
+    """Ensure the background worker task is actively running and recovered if stopped."""
+    task = monitor_state.get("task")
+    if task is None or task.done():
+        if monitor_state.get("trigger_event") is None:
+            monitor_state["trigger_event"] = asyncio.Event()
+        monitor_state["task"] = asyncio.create_task(background_monitoring_worker())
 
 
 def set_windows_sleep_prevention(enable: bool = True):
@@ -292,16 +383,13 @@ def set_windows_sleep_prevention(enable: bool = True):
             pass
 
 
-@app.on_event("startup")
-async def on_startup():
-    """Initialize DB and start background monitoring worker once."""
+@asynccontextmanager
+async def lifespan(fastapi_app: FastAPI):
+    """Modern lifespan context manager to initialize database and background worker reliably."""
     init_db()
-    if os.environ.get("VERCEL"):
-        return
-    set_windows_sleep_prevention(True)
-    if monitor_state.get("task") is None:
-        monitor_state["trigger_event"] = asyncio.Event()
-        monitor_state["task"] = asyncio.create_task(background_monitoring_worker())
+    if not os.environ.get("VERCEL"):
+        set_windows_sleep_prevention(True)
+        ensure_worker_running()
 
         # Auto-login from .env on startup if credentials configured and not yet active
         if Config.SWAGBUCKS_EMAIL and Config.SWAGBUCKS_PASSWORD:
@@ -309,15 +397,15 @@ async def on_startup():
             if env_acc_id not in list_saved_accounts():
                 print(f"[*] Found credentials for {Config.SWAGBUCKS_EMAIL} in .env. Initiating auto-login...")
                 asyncio.create_task(auto_login_from_env())
-
-
-@app.on_event("shutdown")
-async def on_shutdown():
-    """Cancel background worker on shutdown."""
+    yield
     set_windows_sleep_prevention(False)
     if monitor_state.get("task"):
         monitor_state["task"].cancel()
         monitor_state["task"] = None
+
+
+# Bind lifespan to the app router
+app.router.lifespan_context = lifespan
 
 
 @app.get("/health")
@@ -352,7 +440,8 @@ async def get_dashboard_data():
         stats = get_account_stats(acc_id)
         latest = get_latest_record(acc_id)
 
-        status = stats["status"]
+        status = stats.get("status")
+        session_stat = latest.get("session_status") if latest else None
         current_sb = stats["current_sb"]
         latest_change = stats["latest_change"]
         today_change = stats["today_change"]
@@ -361,7 +450,18 @@ async def get_dashboard_data():
         total_latest_change += latest_change
         total_today_change += today_change
 
-        display_status = "Logged In"
+        if session_stat in ("SESSION EXPIRED", "EXPIRED"):
+            display_status = "Session Expired"
+        elif session_stat == "BLOCKED":
+            display_status = "Blocked"
+        elif session_stat == "ERROR":
+            display_status = "Error"
+        elif session_stat == "Logged In":
+            display_status = "Logged In"
+        elif status:
+            display_status = status
+        else:
+            display_status = "Not Checked"
 
         is_above = current_sb >= Config.BALANCE_THRESHOLD if current_sb is not None else False
         status_530 = "530+ Reached" if is_above else "Below 530"
@@ -400,6 +500,9 @@ async def get_dashboard_data():
         "accounts": account_data,
         "total_accounts": len(saved_accounts),
         "accounts_count": len(saved_accounts),
+        "total_sb": total_sb,
+        "total_latest_change": total_latest_change,
+        "total_today_change": total_today_change,
         "accounts_above_530": accounts_above_530,
         "count_above_530": len(accounts_above_530),
         "threshold": Config.BALANCE_THRESHOLD,
@@ -418,10 +521,17 @@ async def get_dashboard_data():
         "swagbucks_email": Config.SWAGBUCKS_EMAIL,
         "has_email_password": bool(Config.SMTP_PASSWORD),
         "last_successful_check": last_success,
+        "last_check_summary": monitor_state.get("last_check_summary"),
+        "last_check_has_changes": monitor_state.get("last_check_has_changes", False),
         "countdown_seconds": monitor_state.get("countdown_seconds", 0),
-        "interval_seconds": monitor_state.get("interval_seconds", 18000),
-        "target_check_time": "Every 5 Hours",
+        "interval_seconds": monitor_state.get("interval_seconds", 3600),
+        "target_check_time": Config.TARGET_CHECK_TIME or "Every 1 Hour",
         "next_scheduled_check": monitor_state.get("next_scheduled_check", ""),
+        "timer_paused": monitor_state.get("timer_paused", False),
+        "last_check_status": monitor_state.get("last_check_status", "idle"),
+        "last_check_message": monitor_state.get("last_check_message", ""),
+        "accounts_checked": monitor_state.get("accounts_checked", 0),
+        "accounts_failed": monitor_state.get("accounts_failed", 0),
         "is_checking": monitor_state["is_checking"],
         "checking_state": monitor_state.get("checking_state", "idle"),
         "current_checking_account": monitor_state.get("current_checking_account"),
@@ -433,11 +543,13 @@ async def get_dashboard_data():
         "batch_size": getattr(Config, "BATCH_ACCOUNTS_PER_IP", 3),
         "gap_remaining": monitor_state.get("gap_remaining", 0),
         "gap_total": monitor_state.get("gap_total", 0),
+        "gap_min_seconds": Config.ACCOUNT_FETCH_GAP_MIN_SECONDS,
+        "gap_max_seconds": Config.ACCOUNT_FETCH_GAP_MAX_SECONDS,
         "next_account_id": monitor_state.get("next_account_id"),
         "proxy_rotation_enabled": getattr(Config, "USE_PROXY_ROTATION", True),
         "proxy_status": proxy_manager.get_status(),
         "headless": monitor_state["headless"],
-        "last_check_time": monitor_state["last_check_time"] or last_success or "Never",
+        "last_check_time": last_success or "Never",
         "alerts": alerts,
         "active_login_account": active_login_account,
         "env_email_configured": bool(Config.SWAGBUCKS_EMAIL),
@@ -467,12 +579,74 @@ async def trigger_check_now():
             )
         return {"status": "checked", "accounts_refreshed": len(accounts), "last_check": now_str}
 
-    if monitor_state["is_checking"]:
-        return {"status": "already_checking"}
+    if monitor_state.get("is_checking"):
+        return JSONResponse(
+            status_code=409,
+            content={
+                "status": "already_checking",
+                "message": "A balance check is already running. Please wait for it to complete.",
+                "current_account": monitor_state.get("current_checking_account"),
+                "index": monitor_state.get("checking_index", 0),
+                "total": monitor_state.get("checking_total", 0),
+            }
+        )
+
+    # Immediately mark as checking to block duplicate concurrent triggers
+    monitor_state["is_checking"] = True
+    monitor_state["checking_state"] = "starting"
+    monitor_state["last_check_status"] = "checking"
+    monitor_state["last_check_message"] = "Starting account balance check..."
+    monitor_state["countdown_seconds"] = 0
+
+    # Ensure background worker is alive
+    ensure_worker_running()
+
     if monitor_state.get("trigger_event"):
-        monitor_state["countdown_seconds"] = 0
         monitor_state["trigger_event"].set()
-    return {"status": "triggered"}
+
+    return {
+        "status": "started",
+        "message": "Check Now triggered. Checking all account balances...",
+    }
+
+
+@app.post("/api/timer/pause")
+async def pause_timer_endpoint():
+    """Pause automatic checking countdown timer."""
+    monitor_state["timer_paused"] = True
+    return {
+        "status": "paused",
+        "timer_paused": True,
+        "countdown_seconds": monitor_state.get("countdown_seconds", 0),
+        "message": "Automatic countdown timer paused.",
+    }
+
+
+@app.post("/api/timer/resume")
+async def resume_timer_endpoint():
+    """Resume automatic checking countdown timer."""
+    monitor_state["timer_paused"] = False
+    return {
+        "status": "resumed",
+        "timer_paused": False,
+        "countdown_seconds": monitor_state.get("countdown_seconds", 0),
+        "message": "Automatic countdown timer resumed.",
+    }
+
+
+@app.post("/api/timer/reset")
+async def reset_timer_endpoint():
+    """Reset countdown timer to configured interval."""
+    interval = monitor_state.get("interval_seconds", Config.CHECK_INTERVAL_SECONDS)
+    diff, next_str = get_seconds_to_next_run(interval)
+    monitor_state["countdown_seconds"] = diff
+    monitor_state["next_scheduled_check"] = next_str
+    return {
+        "status": "reset",
+        "countdown_seconds": diff,
+        "next_scheduled_check": next_str,
+        "message": f"Countdown timer reset to {diff} seconds.",
+    }
 
 
 @app.post("/api/accounts/login-from-env")
@@ -574,6 +748,12 @@ async def send_mobile_test_endpoint():
         "detail": detail,
         "mobile": get_mobile_status(),
     }
+
+
+@app.get("/api/settings/mobile")
+async def get_mobile_settings_endpoint():
+    """Retrieve current mobile notification settings."""
+    return get_mobile_status()
 
 
 @app.post("/api/settings/mobile")
@@ -802,45 +982,54 @@ class TestProxyRequest(BaseModel):
 
 @app.post("/api/settings")
 async def update_settings(req: SettingsRequest):
-    """Update check interval, target time, anti-bot gaps, and proxy rotation."""
+    """Update check interval, target time, threshold, anti-bot gaps, and proxy rotation."""
+    Config.update_general_settings(
+        interval_seconds=req.interval_seconds,
+        target_time=req.target_time,
+        threshold=req.threshold,
+        gap_min_seconds=req.gap_min_seconds,
+        gap_max_seconds=req.gap_max_seconds,
+        use_proxy_rotation=req.use_proxy_rotation,
+        headless=req.headless,
+    )
     if req.interval_seconds is not None:
-        monitor_state["interval_seconds"] = max(10, req.interval_seconds)
-        Config.CHECK_INTERVAL_SECONDS = monitor_state["interval_seconds"]
+        monitor_state["interval_seconds"] = Config.CHECK_INTERVAL_SECONDS
         diff, next_str = get_seconds_to_next_run(monitor_state["interval_seconds"], monitor_state.get("last_check_time"))
         monitor_state["countdown_seconds"] = diff
         monitor_state["next_scheduled_check"] = next_str
     if req.target_time is not None:
-        monitor_state["target_time"] = req.target_time.strip()
-        Config.TARGET_CHECK_TIME = monitor_state["target_time"]
+        monitor_state["target_time"] = Config.TARGET_CHECK_TIME
     if req.headless is not None:
-        monitor_state["headless"] = req.headless
-        Config.HEADLESS = req.headless
-    if req.use_proxy_rotation is not None:
-        Config.USE_PROXY_ROTATION = req.use_proxy_rotation
-    if req.gap_min_seconds is not None:
-        Config.ACCOUNT_FETCH_GAP_MIN_SECONDS = max(1, req.gap_min_seconds)
-    if req.gap_max_seconds is not None:
-        Config.ACCOUNT_FETCH_GAP_MAX_SECONDS = max(Config.ACCOUNT_FETCH_GAP_MIN_SECONDS, req.gap_max_seconds)
-
-    # Persist updates to .env securely
-    Config.save_to_env({
-        "CHECK_INTERVAL_SECONDS": str(Config.CHECK_INTERVAL_SECONDS),
-        "TARGET_CHECK_TIME": Config.TARGET_CHECK_TIME,
-        "USE_PROXY_ROTATION": "true" if Config.USE_PROXY_ROTATION else "false",
-        "ACCOUNT_FETCH_GAP_MIN_SECONDS": str(Config.ACCOUNT_FETCH_GAP_MIN_SECONDS),
-        "ACCOUNT_FETCH_GAP_MAX_SECONDS": str(Config.ACCOUNT_FETCH_GAP_MAX_SECONDS),
-        "HEADLESS": "true" if Config.HEADLESS else "false",
-    })
+        monitor_state["headless"] = Config.HEADLESS
 
     return {
         "status": "updated",
-        "interval_seconds": monitor_state["interval_seconds"],
-        "target_time": monitor_state.get("target_time"),
+        "message": "Settings updated and saved successfully.",
+        "interval_seconds": Config.CHECK_INTERVAL_SECONDS,
+        "target_time": Config.TARGET_CHECK_TIME,
+        "threshold": Config.BALANCE_THRESHOLD,
         "next_scheduled_check": monitor_state.get("next_scheduled_check"),
-        "headless": monitor_state["headless"],
+        "headless": Config.HEADLESS,
         "use_proxy_rotation": Config.USE_PROXY_ROTATION,
         "gap_min_seconds": Config.ACCOUNT_FETCH_GAP_MIN_SECONDS,
         "gap_max_seconds": Config.ACCOUNT_FETCH_GAP_MAX_SECONDS,
+    }
+
+
+@app.get("/api/settings")
+async def get_settings_endpoint():
+    """Retrieve full safe settings for UI population."""
+    return {
+        "interval_seconds": Config.CHECK_INTERVAL_SECONDS,
+        "target_time": Config.TARGET_CHECK_TIME,
+        "threshold": Config.BALANCE_THRESHOLD,
+        "gap_min_seconds": Config.ACCOUNT_FETCH_GAP_MIN_SECONDS,
+        "gap_max_seconds": Config.ACCOUNT_FETCH_GAP_MAX_SECONDS,
+        "use_proxy_rotation": Config.USE_PROXY_ROTATION,
+        "headless": Config.HEADLESS,
+        "timer_paused": monitor_state.get("timer_paused", False),
+        "email": get_email_status(),
+        "mobile": get_mobile_status(),
     }
 
 
@@ -909,12 +1098,14 @@ async def start_dual_servers():
             ssl_keyfile=str(key_path),
             ssl_certfile=str(cert_path),
             log_level="info",
+            lifespan="off",
         )
         config_http = uvicorn.Config(
             app,
             host=Config.HOST,
             port=Config.PORT,
             log_level="info",
+            lifespan="on",
         )
 
         server_https = uvicorn.Server(config_https)

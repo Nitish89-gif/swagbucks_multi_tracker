@@ -42,7 +42,8 @@ class CloudflareBlockedException(Exception):
 async def extract_sb_balance(page: Page) -> int:
     """
     Attempt to extract the SB balance from the loaded Swagbucks page
-    using multiple robust selector strategies and DOM evaluation.
+    using multiple robust selector strategies, raw attribute inspection,
+    and DOM evaluation.
     Retries up to 4 times with short intervals to allow dynamic hydration.
     """
     for attempt in range(4):
@@ -56,8 +57,52 @@ async def extract_sb_balance(page: Page) -> int:
         if "Just a moment..." in page_title or "Cloudflare" in page_title:
             raise CloudflareBlockedException("Cloudflare challenge encountered.")
 
-        # 3. Candidate selectors frequently used on Swagbucks
+        # 3. Direct DOM Evaluation: data-sb-raw attribute & modern React/Vue balance nodes
+        try:
+            raw_val = await page.evaluate(
+                """() => {
+                    // Check exact raw attribute on any element
+                    const rawEl = document.querySelector('[data-sb-raw]');
+                    if (rawEl && rawEl.getAttribute('data-sb-raw')) {
+                        return rawEl.getAttribute('data-sb-raw');
+                    }
+                    // Check var tags (Swagbucks uses <var class="toggler_balanceNumber..." data-sb-raw="392">)
+                    const varEl = document.querySelector('var[class*="balance" i], [class*="balanceNumber" i]');
+                    if (varEl) {
+                        return varEl.innerText || varEl.textContent;
+                    }
+                    // Check account menu toggler
+                    const menuAcc = document.querySelector('#main-menu-item-account, [data-testid="main-menu-item-account"], .toggler_userBalanceAndImage__B0JNA');
+                    if (menuAcc) {
+                        return menuAcc.innerText || menuAcc.textContent;
+                    }
+                    // Check global JS objects
+                    if (window.sbUser && window.sbUser.sbBalance !== undefined) {
+                        return window.sbUser.sbBalance;
+                    }
+                    if (window.sbGlobal && window.sbGlobal.user && window.sbGlobal.user.balance !== undefined) {
+                        return window.sbGlobal.user.balance;
+                    }
+                    return null;
+                }"""
+            )
+            if raw_val is not None:
+                clean = str(raw_val).replace(",", "").strip()
+                match = re.search(r"(\d+)", clean)
+                if match:
+                    return int(match.group(1))
+        except Exception:
+            pass
+
+        # 4. Candidate selectors frequently used on Swagbucks
         selectors = [
+            "[data-sb-raw]",
+            "var[class*='balanceNumber' i]",
+            "var[class*='balance' i]",
+            "[class*='balanceNumber' i]",
+            "[class*='balanceContainer' i]",
+            "#main-menu-item-account",
+            "[data-testid='main-menu-item-account']",
             "#sbBalanceAmount",
             "[data-sb-balance]",
             ".sb-balance",
@@ -74,6 +119,12 @@ async def extract_sb_balance(page: Page) -> int:
             try:
                 elem = await page.query_selector(sel)
                 if elem and await elem.is_visible():
+                    raw_attr = await elem.get_attribute("data-sb-raw")
+                    if raw_attr:
+                        clean_attr = raw_attr.replace(",", "").strip()
+                        m_attr = re.search(r"\b(\d+)\b", clean_attr)
+                        if m_attr:
+                            return int(m_attr.group(1))
                     text = await elem.inner_text()
                     clean = text.replace(",", "").strip()
                     match = re.search(r"\b(\d+)\b", clean)
@@ -82,35 +133,10 @@ async def extract_sb_balance(page: Page) -> int:
             except Exception:
                 continue
 
-        # 4. Check DOM via JS evaluation for common global state objects
-        try:
-            balance_from_js = await page.evaluate(
-                """() => {
-                    if (window.sbUser && window.sbUser.sbBalance !== undefined) {
-                        return window.sbUser.sbBalance;
-                    }
-                    if (window.sbGlobal && window.sbGlobal.user && window.sbGlobal.user.balance !== undefined) {
-                        return window.sbGlobal.user.balance;
-                    }
-                    const balanceEl = document.querySelector('[data-balance], [data-sb-balance], #sbBalanceAmount');
-                    if (balanceEl) {
-                        return balanceEl.innerText || balanceEl.textContent;
-                    }
-                    return null;
-                }"""
-            )
-            if balance_from_js is not None:
-                clean = str(balance_from_js).replace(",", "").strip()
-                match = re.search(r"\b(\d+)\b", clean)
-                if match:
-                    return int(match.group(1))
-        except Exception:
-            pass
-
         # 5. Fallback regex search in top navigation / header
         try:
             header_text = await page.evaluate(
-                "() => document.querySelector('header, nav, #sbHeader')?.innerText || ''"
+                "() => document.querySelector('header, nav, #sbHeader, #header-container')?.innerText || ''"
             )
             if header_text:
                 match = re.search(r"(\d{1,3}(?:,\d{3})*|\d+)\s*(?:SB|sb)\b", header_text)
@@ -120,14 +146,15 @@ async def extract_sb_balance(page: Page) -> int:
             pass
 
         # 6. Check if page contains login prompt (confirming expired session)
-        try:
-            login_btn = await page.query_selector("a[href*='login'], button[data-testid='login-btn']")
-            if login_btn and await login_btn.is_visible():
-                raise SessionExpiredException("Log In button detected. Session expired.")
-        except SessionExpiredException:
-            raise
-        except Exception:
-            pass
+        if attempt >= 2:
+            try:
+                login_btn = await page.query_selector("header a[href*='login'], nav a[href*='login'], button[data-testid='login-btn']")
+                if login_btn and await login_btn.is_visible():
+                    raise SessionExpiredException("Log In button detected. Session expired.")
+            except SessionExpiredException:
+                raise
+            except Exception:
+                pass
 
         if attempt < 3:
             await page.wait_for_timeout(1500)
@@ -150,6 +177,11 @@ async def check_single_account(
     session_dir = get_session_dir(account_id)
     last_record = get_latest_record(account_id)
     prev_balance = last_record["sb_balance"] if last_record and last_record["sb_balance"] is not None else 0
+    prev_successful_ts = (
+        last_record["timestamp"]
+        if (last_record and last_record.get("session_status") == "Logged In")
+        else None
+    )
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -247,68 +279,95 @@ async def check_single_account(
             try:
                 login_res = await login_with_credentials(account_id, creds["email"], creds["password"])
                 relogin_ok = bool(login_res.get("success"))
+                if relogin_ok and page:
+                    await page.goto("https://www.swagbucks.com/", timeout=timeout_ms, wait_until="domcontentloaded")
+                    await page.wait_for_timeout(3000)
+                    current_sb = await extract_sb_balance(page)
+                    change = current_sb - prev_balance if prev_balance is not None else 0
+                    record_balance(
+                        account_id=account_id,
+                        sb_balance=current_sb,
+                        prev_balance=prev_balance,
+                        balance_change=change,
+                        session_status="Logged In",
+                        error_message=None,
+                        ip_used=ip_display,
+                    )
+                    set_account_status(account_id, "ACTIVE")
+                    return {
+                        "account_id": account_id,
+                        "status": "Logged In",
+                        "current_sb": current_sb,
+                        "change": change,
+                        "last_check": now_str,
+                        "error_reason": None,
+                        "ip_used": ip_display,
+                    }
             except Exception as login_err:
                 print(f"[!] Silent re-login attempt error: {login_err}")
 
+        err_msg = "Session expired. Manual login required."
         record_balance(
             account_id=account_id,
             sb_balance=prev_balance,
             prev_balance=prev_balance,
             balance_change=0,
-            session_status="Logged In",
-            error_message=None,
+            session_status="SESSION EXPIRED",
+            error_message=err_msg,
             ip_used=ip_display,
         )
-        set_account_status(account_id, "ACTIVE")
+        set_account_status(account_id, "EXPIRED")
         return {
             "account_id": account_id,
-            "status": "Logged In",
+            "status": "SESSION EXPIRED",
             "current_sb": prev_balance,
             "change": 0,
-            "last_check": now_str,
-            "error_reason": None,
+            "last_check": prev_successful_ts,
+            "error_reason": err_msg,
             "ip_used": ip_display,
         }
 
     except CloudflareBlockedException as e:
+        err_msg = "Cloudflare verification challenge encountered."
         record_balance(
             account_id=account_id,
             sb_balance=prev_balance,
             prev_balance=prev_balance,
             balance_change=0,
-            session_status="Logged In",
-            error_message="Cloudflare challenge",
+            session_status="BLOCKED",
+            error_message=err_msg,
             ip_used=ip_display,
         )
-        set_account_status(account_id, "ACTIVE")
+        set_account_status(account_id, "BLOCKED")
         return {
             "account_id": account_id,
-            "status": "Logged In",
+            "status": "BLOCKED",
             "current_sb": prev_balance,
             "change": 0,
-            "last_check": now_str,
-            "error_reason": None,
+            "last_check": prev_successful_ts,
+            "error_reason": err_msg,
             "ip_used": ip_display,
         }
 
     except Exception as e:
+        err_msg = str(e)
         record_balance(
             account_id=account_id,
             sb_balance=prev_balance,
             prev_balance=prev_balance,
             balance_change=0,
-            session_status="Logged In",
-            error_message=str(e),
+            session_status="ERROR",
+            error_message=err_msg,
             ip_used=ip_display,
         )
-        set_account_status(account_id, "ACTIVE")
+        set_account_status(account_id, "ERROR")
         return {
             "account_id": account_id,
-            "status": "Logged In",
+            "status": "ERROR",
             "current_sb": prev_balance,
             "change": 0,
-            "last_check": now_str,
-            "error_reason": None,
+            "last_check": prev_successful_ts,
+            "error_reason": err_msg,
             "ip_used": ip_display,
         }
 
@@ -329,8 +388,8 @@ async def monitor_accounts_sequentially(
 ) -> List[Dict[str, Any]]:
     """
     Monitor accounts sequentially with:
-    1. Different / rotating IP addresses per account (via proxy_manager).
-    2. Random 2-3 minute time gap between accounts to prevent anti-bot detection.
+    1. Rotating IP addresses per account (when proxies configured).
+    2. Time gap between accounts to prevent anti-bot detection.
     3. Live progress reporting for dashboard UI.
     """
     if not account_ids:
@@ -344,13 +403,23 @@ async def monitor_accounts_sequentially(
 
     async with async_playwright() as p:
         for idx, acc_id in enumerate(account_ids):
-            # 1. Determine batch proxy and display IP for this account (3 accounts per IP)
+            # 1. Determine batch proxy and display IP for this account
             batch_size = getattr(Config, "BATCH_ACCOUNTS_PER_IP", 3)
             b_info = proxy_manager.get_batch_info_for_account(acc_id, idx, total, batch_size=batch_size)
             proxy_dict = b_info["proxy_dict"] if Config.USE_PROXY_ROTATION else None
-            ip_display = b_info["display"] if Config.USE_PROXY_ROTATION else proxy_manager.get_current_public_ip()
             batch_num = b_info["batch_num"]
             pos_in_batch = b_info["pos_in_batch"]
+
+            use_pw_proxy = None
+            if proxy_dict:
+                srv = proxy_dict.get("server", "")
+                if proxy_manager.test_proxy(srv, timeout=2):
+                    use_pw_proxy = proxy_dict
+
+            if use_pw_proxy:
+                ip_display = b_info["display"]
+            else:
+                ip_display = proxy_manager.get_current_public_ip() or "Direct IP"
 
             if progress_callback:
                 try:
@@ -369,13 +438,7 @@ async def monitor_accounts_sequentially(
                 except Exception:
                     pass
 
-            print(f"[*] [{idx+1}/{total}] Checking account '{acc_id}' via Batch {batch_num} [{pos_in_batch}/{batch_size}] IP: {ip_display}...")
-
-            use_pw_proxy = None
-            if proxy_dict:
-                srv = proxy_dict.get("server", "")
-                if proxy_manager.test_proxy(srv, timeout=2):
-                    use_pw_proxy = proxy_dict
+            print(f"[*] [{idx+1}/{total}] Checking account '{acc_id}' via IP: {ip_display}...")
 
             try:
                 res = await check_single_account(
@@ -388,20 +451,35 @@ async def monitor_accounts_sequentially(
                 processed_results.append(res)
             except Exception as e:
                 print(f"[!] Error checking {acc_id}: {e}")
-                now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                processed_results.append({
+                err_res = {
                     "account_id": acc_id,
-                    "status": "Logged In",
+                    "status": "ERROR",
                     "current_sb": 0,
                     "change": 0,
-                    "last_check": now_str,
+                    "last_check": None,
                     "error_reason": str(e),
                     "ip_used": ip_display,
-                })
+                }
+                processed_results.append(err_res)
 
-            # 2. Random 2-3 minute time gap before checking the next account
-            if idx < total - 1:
-                gap = random.randint(min_gap, max_gap)
+            # Report completion of this account
+            if progress_callback:
+                try:
+                    cb_res = progress_callback({
+                        "state": "account_finished",
+                        "account_id": acc_id,
+                        "index": idx + 1,
+                        "total": total,
+                        "ip_used": ip_display,
+                    })
+                    if asyncio.iscoroutine(cb_res):
+                        await cb_res
+                except Exception:
+                    pass
+
+            # 2. Configured time gap before checking the next account
+            if idx < total - 1 and max_gap > 0:
+                gap = random.randint(min_gap, max_gap) if max_gap >= min_gap else min_gap
                 gap_min = gap // 60
                 gap_sec = gap % 60
                 next_acc = account_ids[idx + 1]

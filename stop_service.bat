@@ -10,5 +10,6 @@ if exist "data\service_runner.pid" (
     del /f /q "data\service_runner.pid" >nul 2>&1
 )
 taskkill /IM pythonw.exe /F >nul 2>&1
+powershell -NoProfile -Command "Get-NetTCPConnection -LocalPort 8080,8000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }" >nul 2>&1
 echo [✓] Swagbucks Tracker Service stopped successfully.
 ping 127.0.0.1 -n 2 >nul

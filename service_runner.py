@@ -39,12 +39,16 @@ def get_desktop_dir():
 DESKTOP_DIR = get_desktop_dir()
 SHORTCUT_FILE = DESKTOP_DIR / "Swagbucks_Tracker.url"
 
-logging.basicConfig(
-    filename=str(LOG_FILE),
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+class FlushingFileHandler(logging.FileHandler):
+    def emit(self, record):
+        super().emit(record)
+        self.flush()
+
+handler = FlushingFileHandler(str(LOG_FILE), encoding="utf-8")
+handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", "%Y-%m-%d %H:%M:%S"))
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
 
 PYTHON_EXE = str(BASE_DIR / ".venv" / "Scripts" / "python.exe")
 if not os.path.exists(PYTHON_EXE):
@@ -86,14 +90,16 @@ def is_already_running():
     if PID_FILE.exists():
         try:
             pid = int(PID_FILE.read_text().strip())
+            if pid == os.getpid():
+                return False
             res = subprocess.run(
-                ["tasklist", "/FI", f"PID eq {pid}", "/NH"],
+                ["powershell", "-NoProfile", "-Command", f"Get-CimInstance Win32_Process -Filter 'ProcessId={pid}' | Select-Object -ExpandProperty CommandLine"],
                 capture_output=True,
                 text=True,
                 creationflags=CREATE_NO_WINDOW
             )
-            out = res.stdout.lower()
-            if str(pid) in out and ("python" in out):
+            cmd = res.stdout.lower()
+            if "service_runner" in cmd:
                 return True
         except Exception:
             pass
@@ -176,7 +182,7 @@ def start_tunnel():
             pass
 
     proc = subprocess.Popen(
-        [CLOUDFLARED_EXE, "tunnel", "--url", "http://localhost:8080", "--logfile", str(tunnel_log)],
+        [CLOUDFLARED_EXE, "tunnel", "--url", "http://127.0.0.1:8080", "--logfile", str(tunnel_log)],
         cwd=str(BASE_DIR),
         creationflags=CREATE_NO_WINDOW
     )
@@ -236,6 +242,7 @@ def main():
         set_sleep_prevention(True)
         backend_proc = start_backend()
         tunnel_proc, last_known_url = start_tunnel()
+        last_tunnel_time = time.time()
 
         # Watchdog loop
         while True:
@@ -251,9 +258,10 @@ def main():
                     pass
                 backend_proc = start_backend()
 
-            # Check tunnel process
-            if tunnel_proc.poll() is not None or not is_tunnel_healthy(last_known_url):
-                logging.warning("Tunnel dropped or unresponsive. Forcefully restarting tunnel...")
+            # Check tunnel process (require minimum 45s between tunnel restarts)
+            now_t = time.time()
+            if (tunnel_proc.poll() is not None or not is_tunnel_healthy(last_known_url)) and (now_t - last_tunnel_time > 45):
+                logging.warning("Tunnel dropped or unresponsive. Restarting tunnel...")
                 try:
                     if tunnel_proc.poll() is None:
                         tunnel_proc.terminate()
@@ -261,6 +269,7 @@ def main():
                 except Exception:
                     pass
                 tunnel_proc, last_known_url = start_tunnel()
+                last_tunnel_time = time.time()
 
     except (KeyboardInterrupt, SystemExit):
         logging.info("Service runner received exit signal.")

@@ -412,26 +412,29 @@ def record_balance(
                 ip_used,
             ),
         )
-        try:
-            conn.execute(
-                """
-                UPDATE accounts 
-                SET last_updated = ?,
-                    last_fetch_ip = COALESCE(?, last_fetch_ip),
-                    day_start_sb = CASE 
-                        WHEN day_start_date IS NULL OR day_start_date != ? THEN COALESCE(?, day_start_sb)
-                        ELSE day_start_sb 
-                    END,
-                    day_start_date = CASE 
-                        WHEN day_start_date IS NULL OR day_start_date != ? THEN ?
-                        ELSE day_start_date 
-                    END
-                WHERE account_id = ?
-                """,
-                (now_ts, ip_used, today_date, sb_balance, today_date, today_date, account_id)
-            )
-        except Exception:
-            pass
+        # Update account metadata only upon a SUCCESSFUL check ('Logged In')
+        # Failing checks (SESSION EXPIRED, BLOCKED, ERROR) must NEVER advance the checked timestamp
+        if session_status == "Logged In":
+            try:
+                conn.execute(
+                    """
+                    UPDATE accounts 
+                    SET last_updated = ?,
+                        last_fetch_ip = COALESCE(?, last_fetch_ip),
+                        day_start_sb = CASE 
+                            WHEN day_start_date IS NULL OR day_start_date != ? THEN COALESCE(?, day_start_sb)
+                            ELSE day_start_sb 
+                        END,
+                        day_start_date = CASE 
+                            WHEN day_start_date IS NULL OR day_start_date != ? THEN ?
+                            ELSE day_start_date 
+                        END
+                    WHERE account_id = ?
+                    """,
+                    (now_ts, ip_used, today_date, sb_balance, today_date, today_date, account_id)
+                )
+            except Exception:
+                pass
         conn.commit()
         return cursor.lastrowid
 
@@ -625,7 +628,7 @@ def get_account_stats(account_id: str) -> Dict[str, Any]:
             "day_start_sb": day_start_val,
             "ip_used": ip_val,
             "status": latest["session_status"] if latest else "Not Checked",
-            "last_check_time": latest["timestamp"] if latest else None,
+            "last_check_time": last_success["timestamp"] if last_success else "Never",
             "highest_balance": min_max["highest_balance"] if min_max and min_max["highest_balance"] is not None else 0,
             "lowest_balance": min_max["lowest_balance"] if min_max and min_max["lowest_balance"] is not None else 0,
             "today_change": today_row["today_change"] if today_row else 0,
@@ -850,8 +853,6 @@ def get_last_successful_check_overall() -> Optional[str]:
         )
         row = cursor.fetchone()
         ts = row["timestamp"] if row else None
-        if ts and "14:17:" in ts:
-            return "2026-10-10 21:12:55"
-        return ts or "2026-10-10 21:12:55"
+        return ts
 
 
